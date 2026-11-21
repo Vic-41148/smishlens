@@ -7,7 +7,7 @@ PY     := .venv/bin/python
 PIP    := .venv/bin/pip
 export PYTHONPATH := src
 
-.PHONY: setup test lint train app serve eda clean
+.PHONY: setup test lint train app serve eda data clean
 
 setup:
 	python3 -m venv .venv
@@ -34,6 +34,12 @@ serve:
 
 eda:
 	$(PY) -m smishlens.eda
+
+# Modern pool: raw sources are git-ignored, so this is the only way to rebuild
+# data/processed/modern/{train,cal,test}.csv locally.
+data:
+	$(PY) data/download_data.py
+	$(PY) data/build_modern_pool.py
 
 clean:
 	rm -rf .pytest_cache .ruff_cache

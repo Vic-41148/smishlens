@@ -20,6 +20,8 @@ def finalize(df: pd.DataFrame, source: str, synthetic: bool = False) -> pd.DataF
     df = df.copy()
     df["text"] = df["text"].astype(str)
     df["source"] = source
+    if "y" not in df and "y3" in df:
+        df["y"] = (df["y3"] != "ham").astype(int)
     if "synthetic" not in df:
         df["synthetic"] = bool(synthetic)
     df["has_url"] = df["text"].map(lambda s: bool(URL.search(s)))

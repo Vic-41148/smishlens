@@ -6,6 +6,7 @@ Requires: pandas, pyarrow (for the Hugging Face parquet files).
 
 from __future__ import annotations
 
+import csv
 from collections import Counter
 from pathlib import Path
 
@@ -56,11 +57,22 @@ def moz() -> None:
 
 def exais() -> None:
     spam = ham = 0
+    label_index: Counter[int] = Counter()
+    spans: list[int] = []
     for path in (RAW / "exais" / "extracted").rglob("*.csv"):
         text = path.read_text(encoding="utf-8", errors="replace")
         spam += sum(1 for line in text.splitlines() if ",SPAM," in line)
         ham += sum(1 for line in text.splitlines() if ",HAM," in line)
-    print(f"ExAIS          {spam + ham:>6} rows; {ham:,} ham / {spam:,} spam")
+        for row in csv.reader(text.splitlines()):
+            hit = [i for i, cell in enumerate(row) if cell.strip().upper() in ("HAM", "SPAM")]
+            if hit:
+                label_index[hit[0]] += 1
+                spans.append(sum(1 for cell in row[hit[0] + 1 :] if cell.strip()))
+    print(
+        f"ExAIS          {spam + ham:>6} rows; {ham:,} ham / {spam:,} spam; "
+        f"label cell at index {dict(label_index)}, text spans "
+        f"{min(spans)}–{max(spans)} cells (ragged: parse by label token, not position)"
+    )
 
 
 def smishtank() -> None:

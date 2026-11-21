@@ -11,6 +11,13 @@ venv/
 data/raw/*
 !data/raw/.gitkeep
 
+# Modern pool: processed text from unclear-licence sources stays local.
+# The text-free manifest, folds and audit are committed.
+data/processed/modern/train.csv
+data/processed/modern/cal.csv
+data/processed/modern/test.csv
+data/processed/review/
+
 # Model artefacts and checkpoints (regenerate; never commit weights)
 artifacts/*
 !artifacts/.gitkeep
