@@ -2,13 +2,18 @@
 # Pre-push guard for the public/private deployment split.
 #
 # Install with `make install-hooks`. Uses the stdlib python3 on PATH, never the
-# virtualenv, so it works in a fresh clone.
+# virtualenv, so it works in a fresh clone and in a linked worktree.
 #
-# Rules:
-#   * private-deploy may only go to a remote named "private".
-#   * a ref pushed to "origin" may not have artifacts/serve in its history.
-#   * non-private remotes run public_check on each pushed ref.
-#   * private + private-deploy runs private_check on the working tree.
+# Dispatch is by remote name, and the refs come from stdin:
+#
+#   origin   public. Only refs/heads/main may go out, it must be a fast-forward,
+#            its history may not touch artifacts/serve, and the pushed tree must
+#            pass `public_check`.
+#   private  artifact. Only local refs/heads/private-deploy may go to remote
+#            refs/heads/main, it must be a fast-forward, the remote URL must
+#            equal the URL already configured for `private`, and the pushed
+#            commit must pass `public_check --private`.
+#   other    refused. Add a branch here and to the checks before you use it.
 set -eu
 
 root=$(git rev-parse --show-toplevel)
@@ -23,29 +28,67 @@ else
     py_path="$root/src"
 fi
 
-while read -r local_ref local_sha remote_ref remote_sha; do
-    [ -z "${local_ref:-}" ] && continue
-    # Deletions have no tree to inspect.
-    [ "$local_sha" = "$zero" ] && continue
+refuse() {
+    echo "pre-push: $*" >&2
+    exit 1
+}
 
-    if [ "$remote_ref" = "refs/heads/private-deploy" ] && [ "$remote_name" != "private" ]; then
-        echo "pre-push: refusing to push private-deploy to remote '$remote_name'" >&2
-        echo "pre-push: the artifact branch belongs only on the 'private' remote" >&2
-        exit 1
+# A push that rewrites published history is always refused.
+require_fast_forward() {
+    if [ "$2" = "$zero" ]; then
+        return 0
+    fi
+    if git -C "$root" merge-base --is-ancestor "$2" "$1" 2>/dev/null; then
+        return 0
+    fi
+    refuse "refusing to rewrite published history: '$3' is not a fast-forward"
+}
+
+case "$remote_name" in
+    origin | private) ;;
+    *) refuse "unknown remote '$remote_name'; only 'origin' (public) and 'private' (artifact) are allowed" ;;
+esac
+
+if [ "$remote_name" = "private" ]; then
+    expected=$(git -C "$root" config --get remote.private.url || true)
+    if [ -z "$expected" ]; then
+        refuse "remote 'private' has no configured URL; add it with: git remote add private <url>"
+    fi
+    if [ "$remote_url" != "$expected" ]; then
+        refuse "remote 'private' URL '$remote_url' does not match the configured '$expected'"
+    fi
+fi
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+    if [ -z "${local_ref:-}" ]; then
+        continue
+    fi
+    # Deletions have no tree to inspect.
+    if [ "$local_sha" = "$zero" ]; then
+        continue
     fi
 
     if [ "$remote_name" = "origin" ]; then
-        if git -C "$root" log --format=%h "$local_sha" -- artifacts/serve | grep -q .; then
-            echo "pre-push: refusing '$local_ref': its history touches artifacts/serve" >&2
-            echo "pre-push: origin is the public remote and must never carry the bundle" >&2
-            exit 1
+        if [ "$local_ref" != "refs/heads/main" ]; then
+            refuse "'$local_ref' may not be pushed to origin; only main is published"
         fi
-    fi
-
-    if [ "$remote_name" = "private" ] && [ "$remote_ref" = "refs/heads/private-deploy" ]; then
-        PYTHONPATH="$py_path" python3 -m smishlens.public_check --private || status=1
-    else
+        if [ "$remote_ref" != "refs/heads/main" ]; then
+            refuse "'$local_ref' may only be pushed to origin main, not '$remote_ref'"
+        fi
+        require_fast_forward "$local_sha" "$remote_sha" "$remote_ref"
+        if git -C "$root" log --format=%h "$local_sha" -- artifacts/serve | grep -q .; then
+            refuse "refusing '$local_ref': its history touches artifacts/serve; origin is the public remote and must never carry the bundle"
+        fi
         PYTHONPATH="$py_path" python3 -m smishlens.public_check --ref "$local_sha" || status=1
+    else
+        if [ "$local_ref" != "refs/heads/private-deploy" ]; then
+            refuse "'$local_ref' may not be pushed to private; only private-deploy is published there"
+        fi
+        if [ "$remote_ref" != "refs/heads/main" ]; then
+            refuse "private-deploy may only be pushed to private main, not '$remote_ref'"
+        fi
+        require_fast_forward "$local_sha" "$remote_sha" "$remote_ref"
+        PYTHONPATH="$py_path" python3 -m smishlens.public_check --private --ref "$local_sha" || status=1
     fi
 done
 

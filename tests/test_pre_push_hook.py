@@ -1,4 +1,4 @@
-"""Pre-push hook logic, exercised in throwaway repositories.
+"""Pre-push hook dispatch, exercised in throwaway repositories.
 
 The hook is copied from ``deploy/pre-push`` into a temp repo's ``.git/hooks``.
 No real remote is contacted and the real repository's remotes are never read
@@ -18,6 +18,8 @@ import pytest
 TEMPLATE = Path(__file__).resolve().parents[1] / "deploy" / "pre-push"
 SRC = Path(__file__).resolve().parents[1] / "src"
 ZERO = "0" * 40
+PRIVATE_URL = "ssh://example.invalid/private.git"
+ORIGIN_URL = "ssh://example.invalid/public.git"
 
 GIT_ENV = {
     **os.environ,
@@ -57,7 +59,7 @@ def _install_hook(repo: Path) -> Path:
     return hook
 
 
-def _run_hook(repo: Path, remote: str, lines: list[str]) -> subprocess.CompletedProcess:
+def _run_hook(repo: Path, remote: str, lines: list[str], url: str = ORIGIN_URL):
     hook = _install_hook(repo)
     env = {
         **GIT_ENV,
@@ -67,7 +69,7 @@ def _run_hook(repo: Path, remote: str, lines: list[str]) -> subprocess.Completed
         "PYTHONPATH": str(SRC),
     }
     return subprocess.run(
-        ["sh", str(hook), remote, "ssh://example.invalid/repo.git"],
+        ["sh", str(hook), remote, url],
         input="\n".join(lines) + "\n",
         capture_output=True,
         text=True,
@@ -76,42 +78,16 @@ def _run_hook(repo: Path, remote: str, lines: list[str]) -> subprocess.Completed
     )
 
 
-def _line(local_ref: str, sha: str, remote_ref: str | None = None) -> str:
-    return f"{local_ref} {sha} {remote_ref or local_ref} {ZERO}"
+def _line(local_ref: str, sha: str, remote_ref: str | None = None, remote_sha: str = ZERO) -> str:
+    return f"{local_ref} {sha} {remote_ref or local_ref} {remote_sha}"
 
 
-def test_refuses_private_deploy_on_a_non_private_remote(tmp_path):
-    repo = _repo(tmp_path)
-    sha = _git(repo, "rev-parse", "HEAD")
-    result = _run_hook(repo, "origin", [_line("refs/heads/private-deploy", sha)])
-    assert result.returncode != 0
-    assert "private-deploy" in result.stderr
-    assert "private" in result.stderr
+def _add_private_remote(repo: Path, url: str = PRIVATE_URL) -> None:
+    _git(repo, "remote", "add", "private", url)
 
 
-def test_refuses_artifact_history_on_origin(tmp_path):
-    repo = _repo(tmp_path)
-    art = repo / "artifacts" / "serve"
-    art.mkdir(parents=True)
-    (art / "svm_bundle.joblib").write_bytes(b"fixture")
-    _git(repo, "add", "artifacts/serve/svm_bundle.joblib")
-    _git(repo, "commit", "-q", "-m", "artifact")
-    sha = _git(repo, "rev-parse", "HEAD")
-    result = _run_hook(repo, "origin", [_line("refs/heads/main", sha)])
-    assert result.returncode != 0
-    assert "artifacts/serve" in result.stderr
-
-
-def test_clean_ref_passes_public_check(tmp_path):
-    repo = _repo(tmp_path)
-    sha = _git(repo, "rev-parse", "HEAD")
-    result = _run_hook(repo, "origin", [_line("refs/heads/main", sha)])
-    assert result.returncode == 0, result.stderr + result.stdout
-    assert "OK:" in result.stdout
-
-
-def test_private_remote_runs_private_mode(tmp_path):
-    repo = _repo(tmp_path)
+def _commit_artifacts(repo: Path) -> str:
+    """Commit the three serving files on a private-deploy branch and return its sha."""
     _git(repo, "switch", "-q", "-c", "private-deploy")
     art = repo / "artifacts" / "serve"
     art.mkdir(parents=True)
@@ -122,34 +98,78 @@ def test_private_remote_runs_private_mode(tmp_path):
         f"{hashlib.sha256((art / name).read_bytes()).hexdigest()}  {name}\n" for name in names
     )
     (art / "MANIFEST.sha256").write_text(manifest)
-    _git(repo, "add", "artifacts/serve")
+    _git(repo, "add", "-f", "artifacts/serve")
     _git(repo, "commit", "-q", "-m", "artifact")
+    return _git(repo, "rev-parse", "HEAD")
+
+
+def _orphan_sha(repo: Path) -> str:
+    """A commit that is not an ancestor of anything else, for force-push tests."""
+    _git(repo, "checkout", "-q", "--orphan", "orphan")
+    _git(repo, "rm", "-q", "-rf", ".")
+    (repo / "other.txt").write_text("other\n")
+    _git(repo, "add", "other.txt")
+    _git(repo, "commit", "-q", "-m", "orphan")
     sha = _git(repo, "rev-parse", "HEAD")
-    result = _run_hook(repo, "private", [_line("refs/heads/private-deploy", sha)])
-    assert result.returncode == 0, result.stderr + result.stdout
-    assert "private tree" in result.stdout
+    _git(repo, "switch", "-q", "main")
+    return sha
 
 
-def test_private_remote_public_ref_still_uses_public_mode(tmp_path):
+# --- origin: public, main only ------------------------------------------------
+
+
+def test_origin_main_passes(tmp_path):
     repo = _repo(tmp_path)
     sha = _git(repo, "rev-parse", "HEAD")
-    result = _run_hook(repo, "private", [_line("refs/heads/main", sha)])
+    result = _run_hook(repo, "origin", [_line("refs/heads/main", sha)])
     assert result.returncode == 0, result.stderr + result.stdout
     assert "public tree" in result.stdout
 
 
-@pytest.mark.parametrize("remote", ["origin", "private"])
-def test_deletions_are_ignored(tmp_path, remote):
+def test_origin_refuses_private_deploy(tmp_path):
     repo = _repo(tmp_path)
-    result = _run_hook(repo, remote, [_line("(delete)", ZERO)])
-    assert result.returncode == 0
+    sha = _git(repo, "rev-parse", "HEAD")
+    result = _run_hook(repo, "origin", [_line("refs/heads/private-deploy", sha)])
+    assert result.returncode != 0
+    assert "only main is published" in result.stderr
+
+
+def test_origin_refuses_any_other_ref(tmp_path):
+    repo = _repo(tmp_path)
+    _git(repo, "switch", "-q", "-c", "feature")
+    sha = _git(repo, "rev-parse", "HEAD")
+    result = _run_hook(repo, "origin", [_line("refs/heads/feature", sha)])
+    assert result.returncode != 0
+    assert "only main is published" in result.stderr
+
+
+def test_origin_refuses_artifact_history(tmp_path):
+    repo = _repo(tmp_path)
+    art = repo / "artifacts" / "serve"
+    art.mkdir(parents=True)
+    (art / "svm_bundle.joblib").write_bytes(b"fixture")
+    _git(repo, "add", "-f", "artifacts/serve/svm_bundle.joblib")
+    _git(repo, "commit", "-q", "-m", "artifact")
+    sha = _git(repo, "rev-parse", "HEAD")
+    result = _run_hook(repo, "origin", [_line("refs/heads/main", sha)])
+    assert result.returncode != 0
+    assert "artifacts/serve" in result.stderr
+
+
+def test_origin_refuses_a_force_push(tmp_path):
+    repo = _repo(tmp_path)
+    sha = _git(repo, "rev-parse", "HEAD")
+    orphan = _orphan_sha(repo)
+    result = _run_hook(repo, "origin", [_line("refs/heads/main", orphan, remote_sha=sha)])
+    assert result.returncode != 0
+    assert "fast-forward" in result.stderr
 
 
 @pytest.mark.parametrize(
     "path",
     ["data/local/real_alerts.csv", "reports/results/real_alerts.json"],
 )
-def test_refuses_local_real_alerts_on_origin(tmp_path, path):
+def test_origin_refuses_local_real_alerts(tmp_path, path):
     repo = _repo(tmp_path)
     target = repo / path
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -160,3 +180,108 @@ def test_refuses_local_real_alerts_on_origin(tmp_path, path):
     result = _run_hook(repo, "origin", [_line("refs/heads/main", sha)])
     assert result.returncode != 0
     assert "forbidden" in result.stdout
+
+
+# --- private: private-deploy -> main only ------------------------------------
+
+
+def test_private_deploy_to_private_main_passes(tmp_path):
+    repo = _repo(tmp_path)
+    _add_private_remote(repo)
+    sha = _commit_artifacts(repo)
+    result = _run_hook(
+        repo,
+        "private",
+        [_line("refs/heads/private-deploy", sha, "refs/heads/main")],
+        url=PRIVATE_URL,
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert "private tree" in result.stdout
+
+
+def test_private_refuses_main(tmp_path):
+    repo = _repo(tmp_path)
+    _add_private_remote(repo)
+    sha = _git(repo, "rev-parse", "HEAD")
+    result = _run_hook(
+        repo, "private", [_line("refs/heads/main", sha, "refs/heads/main")], url=PRIVATE_URL
+    )
+    assert result.returncode != 0
+    assert "only private-deploy is published there" in result.stderr
+
+
+def test_private_refuses_a_different_remote_ref(tmp_path):
+    repo = _repo(tmp_path)
+    _add_private_remote(repo)
+    sha = _commit_artifacts(repo)
+    result = _run_hook(
+        repo,
+        "private",
+        [_line("refs/heads/private-deploy", sha, "refs/heads/private-deploy")],
+        url=PRIVATE_URL,
+    )
+    assert result.returncode != 0
+    assert "private main" in result.stderr
+
+
+def test_private_refuses_a_mismatched_url(tmp_path):
+    repo = _repo(tmp_path)
+    _add_private_remote(repo)
+    sha = _commit_artifacts(repo)
+    result = _run_hook(
+        repo,
+        "private",
+        [_line("refs/heads/private-deploy", sha, "refs/heads/main")],
+        url="ssh://evil.invalid/private.git",
+    )
+    assert result.returncode != 0
+    assert "does not match the configured" in result.stderr
+
+
+def test_private_refuses_when_no_url_is_configured(tmp_path):
+    repo = _repo(tmp_path)
+    sha = _commit_artifacts(repo)
+    result = _run_hook(
+        repo,
+        "private",
+        [_line("refs/heads/private-deploy", sha, "refs/heads/main")],
+        url=PRIVATE_URL,
+    )
+    assert result.returncode != 0
+    assert "no configured URL" in result.stderr
+
+
+def test_private_refuses_a_force_push(tmp_path):
+    repo = _repo(tmp_path)
+    _add_private_remote(repo)
+    sha = _commit_artifacts(repo)
+    orphan = _orphan_sha(repo)
+    result = _run_hook(
+        repo,
+        "private",
+        [_line("refs/heads/private-deploy", orphan, "refs/heads/main", remote_sha=sha)],
+        url=PRIVATE_URL,
+    )
+    assert result.returncode != 0
+    assert "fast-forward" in result.stderr
+
+
+# --- anything else ------------------------------------------------------------
+
+
+@pytest.mark.parametrize("remote", ["upstream", "backup", "Private", ""])
+def test_unknown_remote_is_refused(tmp_path, remote):
+    repo = _repo(tmp_path)
+    sha = _git(repo, "rev-parse", "HEAD")
+    result = _run_hook(repo, remote, [_line("refs/heads/main", sha)])
+    assert result.returncode != 0
+    assert "unknown remote" in result.stderr
+
+
+@pytest.mark.parametrize("remote", ["origin", "private"])
+def test_deletions_are_ignored(tmp_path, remote):
+    repo = _repo(tmp_path)
+    if remote == "private":
+        _add_private_remote(repo)
+    result = _run_hook(repo, remote, [_line("(delete)", ZERO)], url=PRIVATE_URL)
+    assert result.returncode == 0

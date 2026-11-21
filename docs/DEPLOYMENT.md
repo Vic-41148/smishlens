@@ -185,9 +185,18 @@ git push origin main
 git push private private-deploy:main
 ```
 
-The pre-push hook refuses `private-deploy` on any remote not named
-`private`, and refuses any ref on `origin` whose history touches
-`artifacts/serve`.
+The pre-push hook dispatches on the remote name and reads the refs from
+stdin, so it behaves the same from a linked worktree:
+
+| Remote | Allowed ref | Checks |
+|---|---|---|
+| `origin` | `main` → `main` only | fast-forward, no `artifacts/serve` in history, `public_check` |
+| `private` | `private-deploy` → `main` only | fast-forward, URL must equal `git config remote.private.url`, `public_check --private` |
+| any other name | nothing | refused |
+
+A force push is refused on both remotes. The URL check compares against
+the URL already configured for `private`, so the hook never carries a
+repository URL of its own.
 
 ### 3. Streamlit Community Cloud
 
