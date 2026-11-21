@@ -1,4 +1,4 @@
-"""Tier-2 experiment runner: E5, E3, E4, E6 (+ gold once), classical models.
+"""Tier-2 experiment runner: E5, E3, E4, E6 (+ gold once), classical + mmBERT.
 
 Rules baked in (roadmap §8, and the 0.923 base rate):
 
@@ -17,6 +17,8 @@ Usage
     python -m smishlens.pool_experiments --only E5
     python -m smishlens.pool_experiments --only E3,E4,E6
     python -m smishlens.pool_experiments --only E5,E3,E4,E6 --models dummy,mnb,cnb,lr,svm
+    python -m smishlens.pool_experiments --only "" --mmbert-e3 base
+    python -m smishlens.pool_experiments --only "" --mmbert-e4 small
 """
 
 from __future__ import annotations
@@ -57,6 +59,10 @@ FPR_ONLY = HAM_ONLY_SOURCES
 FPR_SOURCES = BOTH_CLASSES
 HELD_OUT = (*BOTH_CLASSES, *RECALL_ONLY, *FPR_ONLY)
 DEFAULT_MODELS = ("dummy", "mnb", "cnb", "lr", "svm")
+MMBERT_MODELS = {
+    "base": str(ROOT / "models" / "mmBERT-base"),
+    "small": str(ROOT / "models" / "mmBERT-small"),
+}
 
 NOTE = (
     "pool prevalence is positive-heavy; IMC'25 dominates the rows and has only "
@@ -520,6 +526,178 @@ def run_e4(frame: pd.DataFrame, models: list[str]) -> dict:
     return {"note": NOTE, "rows": rows}
 
 
+# --- E3/E4 mmBERT headline arms -------------------------------------------
+
+
+def _fit_mmbert(
+    train: pd.DataFrame,
+    cal: pd.DataFrame,
+    out_dir: str | Path,
+    model_key: str,
+    epochs: int = 3,
+    max_len: int = 128,
+    bs: int = 16,
+) -> tuple[object, float, float, dict]:
+    """Fine-tune one mmBERT checkpoint and freeze its threshold on ``cal_a``.
+
+    Uses the same ``train_mmbert_pipeline`` as the final model, so temperature
+    scaling and the FPR threshold follow the documented protocol. The extra
+    cost threshold is recomputed on the same ``cal_a`` margins used for ``tau``.
+    """
+    from sklearn.model_selection import train_test_split
+
+    from smishlens.calibrate import apply_temperature
+    from smishlens.train import train_mmbert_pipeline
+    from smishlens.train_mmbert import MMBertScorer, cal_margins
+
+    if model_key not in MMBERT_MODELS:
+        raise ValueError(f"unknown mmBERT model {model_key!r}")
+    out = Path(out_dir)
+    train_mmbert_pipeline(
+        train,
+        cal,
+        out,
+        max_fpr=MAX_FPR,
+        seed=SEED,
+        model_name=MMBERT_MODELS[model_key],
+        model_label=f"mmbert_{model_key}_temp_scaled",
+        epochs=epochs,
+        max_len=max_len,
+        bs=bs,
+    )
+    meta = json.loads((out / "metadata.json").read_text())
+    scorer = MMBertScorer.load(out / "mmbert", T=meta["calibration"]["T"])
+    cal_a, _ = train_test_split(cal, test_size=0.5, stratify=cal["y"], random_state=SEED)
+    margins = cal_margins(out / "mmbert", cal_a["text"].tolist(), max_len=max_len)
+    p_a = apply_temperature(margins, meta["calibration"]["T"])
+    cost_tau = float(
+        cost_operating_point(cal_a["y"].to_numpy(), p_a, fp_cost=10.0, fn_cost=1.0)["tau"]
+    )
+    return scorer, float(meta["threshold"]["value"]), cost_tau, meta
+
+
+def run_e3_mmbert(
+    frame: pd.DataFrame,
+    model_key: str,
+    out_dir: str | Path,
+    epochs: int = 3,
+    max_len: int = 128,
+    bs: int = 16,
+) -> dict:
+    """mmBERT headline arm on the frozen pool test split.
+
+    This is deliberately separate from ``run_e3``: a transformer has no
+    train-OOF pass, so it cannot enter the classical SEL ranking. The model is
+    fixed by the roadmap, trained on pool train, calibrated on cal, and the test
+    split is scored once.
+    """
+    train = frame[frame["split"] == "train"]
+    cal = frame[frame["split"] == "cal"]
+    test = frame[frame["split"] == "test"].reset_index(drop=True)
+    scorer, tau, cost_tau, meta = _fit_mmbert(
+        train, cal, out_dir, model_key, epochs=epochs, max_len=max_len, bs=bs
+    )
+    p = scorer.predict_proba(test["text"].astype(str).tolist())[:, 1]
+    rows: list[dict] = []
+    for src in sorted(test["source"].unique()):
+        mask = (test["source"] == src).to_numpy()
+        rows.append(
+            _row(
+                {"experiment": "E3", "model": f"mmbert_{model_key}", "source": src},
+                mode_for(src),
+                test.loc[mask, "y"].to_numpy(),
+                p[mask],
+                tau,
+                cost_tau,
+            )
+        )
+    rows.append(
+        {
+            "experiment": "E3",
+            "model": f"mmbert_{model_key}",
+            "source": "macro",
+            "mode": "macro",
+            **_macro(rows),
+        }
+    )
+    return {
+        "note": NOTE,
+        "scope": "mmBERT headline arm; trained on pool train, calibrated on cal, scored once on pool test",
+        "model": f"mmbert_{model_key}",
+        "model_path": MMBERT_MODELS[model_key],
+        "selection": "roadmap-fixed headline; no train-OOF pass exists for a transformer, so it is not part of the classical SEL",
+        "threshold": {
+            "tau": tau,
+            "cost_tau": cost_tau,
+            "policy": f"max recall s.t. FPR <= {MAX_FPR} on cal_a",
+        },
+        "calibration": meta.get("calibration"),
+        "versions": {"torch": meta.get("torch"), "transformers": meta.get("transformers")},
+        "n_train": int(len(train)),
+        "n_cal": int(len(cal)),
+        "n_test": int(len(test)),
+        "rows": rows,
+    }
+
+
+def run_e4_mmbert(
+    frame: pd.DataFrame,
+    model_key: str,
+    out_root: str | Path,
+    epochs: int = 3,
+    max_len: int = 128,
+    bs: int = 16,
+) -> dict:
+    """Five-fold LOSO for one mmBERT checkpoint.
+
+    Each fold trains on pool train rows excluding the held-out source and
+    calibrates on cal rows excluding the same source, so the held-out source is
+    never seen. The held-out source is scored at every frozen split label, as in
+    the classical LOSO harness.
+    """
+    rows: list[dict] = []
+    for held in HELD_OUT:
+        train, test = _fold(frame, held)
+        cal = frame[(frame["split"] == "cal") & (frame["source"] != held)]
+        out_dir = Path(out_root) / f"heldout_{held}"
+        scorer, tau, cost_tau, _ = _fit_mmbert(
+            train, cal, out_dir, model_key, epochs=epochs, max_len=max_len, bs=bs
+        )
+        p = scorer.predict_proba(test["text"].astype(str).tolist())[:, 1]
+        rows.append(
+            _row(
+                {
+                    "experiment": "E4",
+                    "model": f"mmbert_{model_key}",
+                    "source": held,
+                    "n_train": int(len(train)),
+                    "n_cal": int(len(cal)),
+                },
+                mode_for(held),
+                test["y"].to_numpy(),
+                p,
+                tau,
+                cost_tau,
+            )
+        )
+    rows.append(
+        {
+            "experiment": "E4",
+            "model": f"mmbert_{model_key}",
+            "source": "macro",
+            "mode": "macro",
+            **_macro(rows),
+        }
+    )
+    return {
+        "note": NOTE,
+        "model": f"mmbert_{model_key}",
+        "model_path": MMBERT_MODELS[model_key],
+        "calibration": "cal rows excluding the held-out source, split into cal_a/cal_b exactly as train_mmbert_pipeline",
+        "rows": rows,
+    }
+
+
 # --- E6 -------------------------------------------------------------------
 
 
@@ -718,6 +896,10 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="E6 without the gold pass; only for the n_jobs equivalence check, never for a result",
     )
+    ap.add_argument("--mmbert-e3", choices=("base", "small"), default=None)
+    ap.add_argument("--mmbert-e4", choices=("base", "small"), default=None)
+    ap.add_argument("--mmbert-epochs", type=int, default=3)
+    ap.add_argument("--mmbert-out", default=str(ROOT / "artifacts" / "mmbert"))
     ap.add_argument("--out", default=str(RESULTS))
     args = ap.parse_args(argv)
 
@@ -760,6 +942,34 @@ def main(argv: list[str] | None = None) -> int:
 
     if "E4" in only:
         _json(out / "e4_loso.json", run_e4(frame, models))
+
+    if args.mmbert_e3:
+        payload = run_e3_mmbert(
+            frame,
+            args.mmbert_e3,
+            Path(args.mmbert_out) / f"e3_{args.mmbert_e3}",
+            epochs=args.mmbert_epochs,
+        )
+        _json(out / f"e3_pool_mmbert_{args.mmbert_e3}.json", payload)
+        macro = next(r for r in payload["rows"] if r["source"] == "macro")
+        print(
+            f"E3 mmBERT-{args.mmbert_e3} macro recall {macro.get('macro_recall'):.4f} "
+            f"FPR {macro.get('macro_fpr'):.4f} PR-AUC {macro.get('macro_pr_auc'):.4f}"
+        )
+
+    if args.mmbert_e4:
+        payload = run_e4_mmbert(
+            frame,
+            args.mmbert_e4,
+            Path(args.mmbert_out) / f"e4_{args.mmbert_e4}",
+            epochs=args.mmbert_epochs,
+        )
+        _json(out / f"e4_loso_mmbert_{args.mmbert_e4}.json", payload)
+        macro = next(r for r in payload["rows"] if r["source"] == "macro")
+        print(
+            f"E4 mmBERT-{args.mmbert_e4} macro recall {macro.get('macro_recall'):.4f} "
+            f"FPR {macro.get('macro_fpr'):.4f} PR-AUC {macro.get('macro_pr_auc'):.4f}"
+        )
 
     if "GOLD" in only:
         # One pass, one write, immediately: nothing else runs before the file

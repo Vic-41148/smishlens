@@ -111,8 +111,31 @@ def train_classical(
     return out
 
 
+def mmbert_label(model_name: str) -> str:
+    """Stable metadata label for a local mmBERT checkpoint path."""
+    return Path(model_name).name.lower().replace("-", "_") + "_temp_scaled"
+
+
+def torch_versions() -> dict[str, str]:
+    """Versions that matter for reproducing an encoder fine-tune."""
+    try:
+        import torch
+        import transformers
+
+        return {"torch": torch.__version__, "transformers": transformers.__version__}
+    except Exception:  # pragma: no cover - only hit on an incomplete install
+        return {}
+
+
 def train_mmbert_pipeline(
-    train, cal, out_dir, alpha: float = 0.05, max_fpr: float = 0.01, seed: int = 42, **kw
+    train,
+    cal,
+    out_dir,
+    alpha: float = 0.05,
+    max_fpr: float = 0.01,
+    seed: int = 42,
+    model_label: str | None = None,
+    **kw,
 ):
     """No out-of-fold pass for a transformer, so the cal split is cut in two.
 
@@ -123,6 +146,8 @@ def train_mmbert_pipeline(
 
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
+    if model_label is None:
+        model_label = mmbert_label(str(kw.get("model_name", tm.MODEL)))
     tm.train(train, str(out / "mmbert"), seed=seed, **kw)
     cal_a, cal_b = train_test_split(cal, test_size=0.5, stratify=cal["y"], random_state=seed)
     ma = tm.cal_margins(str(out / "mmbert"), cal_a["text"])
@@ -131,7 +156,7 @@ def train_mmbert_pipeline(
     tau = threshold_for_fpr(cal_a["y"].values, apply_temperature(ma, T), max_fpr)[0]
     qs = fit_mondrian(apply_temperature(mb, T), cal_b["y"].values, alpha)
     meta = _meta(
-        "mmbert_base_temp_scaled",
+        model_label,
         tau,
         qs,
         {"method": "temperature", "T": T},
@@ -139,7 +164,7 @@ def train_mmbert_pipeline(
         cal,
         alpha,
         max_fpr,
-        {"torch_note": "record torch/transformers versions here"},
+        torch_versions(),
         seed=seed,
     )
     (out / "metadata.json").write_text(json.dumps(meta, indent=2))
