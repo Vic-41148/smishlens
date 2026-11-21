@@ -26,3 +26,6 @@ reports/figures/*.tmp
 .pytest_cache/
 .ruff_cache/
 .DS_Store
+
+# Session exports: never commit
+session-*.md
