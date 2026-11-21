@@ -98,7 +98,7 @@ full acquisition manifest and `data/processed/uci/DATA_CARD.md` for the anchor c
 | IMC'25 smishing | 33,869 | smishing only | CC BY 4.0 | Tier 2, recall-only |
 | Mishra & Soni | 5,971 | ham / spam / smishing | CC BY 4.0 | Tier 2, LOSO |
 | MOZ-Smishing | 2,561 | 2,009 / 552 | unclear (card carries a *model* licence) | Tier 2, LOSO |
-| ExAIS SMS Spam | 5,240 | 2,890 ham / 2,350 spam | unclear (no licence file) | **excluded 2026-11-21**: "spam" is bulk/unsolicited, not smishing (30% label-audit disagreement) |
+| ExAIS SMS Spam | 5,240 | 2,890 ham / 2,350 spam | unclear (no licence file) | **ham-only 2026-11-21**: 2,330 ham kept, every spam row dropped ("spam" is bulk/unsolicited, not smishing); FPR-only LOSO fold |
 | Smishtank Dataset I | 1,062 | smishing only | unclear (cite only) | Tier 2, recall-only |
 | WSPR Lab | 68,029 msgs | phishing only | MIT (repo) | Tier 2, recall-only |
 | Africa HF set | 10,000 | 5,000 / 5,000 | unclear | **synthetic — never in a test set** |

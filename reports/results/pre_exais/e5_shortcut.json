@@ -1,0 +1,21 @@
+{
+  "note": "pool prevalence 0.923; IMC'25 is 86% of pool rows and has only 3 ham, so no pool-level accuracy or F1 is a headline; FPR is reported on mishra and moz only; imc25 and smishtank report recall only",
+  "scope": "whole frozen pool (train+cal+test); descriptive probe of the data, no model is selected and no threshold is set here",
+  "n_rows": 28283,
+  "format_only_auc_pooled": 0.9781017666897277,
+  "length_only_auc_pooled": 0.7918799701465962,
+  "by_source": {
+    "mishra": {
+      "format_only_auc": 0.9834183673469388,
+      "length_only_auc": 0.9020466141001855
+    },
+    "moz": {
+      "format_only_auc": 0.9935117199691191,
+      "length_only_auc": 0.8429636040342319
+    }
+  },
+  "source_id_acc_from_format": 0.9334936180744617,
+  "source_id_chance": 0.8649011773857087,
+  "imc25_vs_rest_auc_from_format": 0.9635169737332585,
+  "imc25_row_share": 0.8649011773857087
+}

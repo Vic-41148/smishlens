@@ -1,0 +1,44 @@
+{
+  "note": "pool prevalence is positive-heavy; IMC'25 dominates the rows and has only 3 ham, so no pool-level accuracy or F1 is a headline; FPR is reported on the both-class sources (mishra, moz) and separately on the exais ham-only fold; imc25 and smishtank report recall only; exais never enters a both-class macro",
+  "scope": "whole frozen pool (train+cal+test); descriptive probe of the data, no model is selected and no threshold is set here",
+  "n_rows": 30447,
+  "format_only_auc_pooled": 0.977911543714931,
+  "length_only_auc_pooled": 0.7937182747493209,
+  "class_auc_scope": "rows from sources with both classes present; fpr_only sources excluded",
+  "by_source": {
+    "mishra": {
+      "format_only_auc": 0.9842149769801748,
+      "length_only_auc": 0.9245454758996523
+    },
+    "moz": {
+      "format_only_auc": 0.9937119121536162,
+      "length_only_auc": 0.8450974473956537
+    }
+  },
+  "fpr_only": {
+    "exais": {
+      "n_rows": 2330,
+      "n_pos": 0,
+      "n_neg": 2330,
+      "class_auc": null,
+      "why": "ham only; no class-separation AUC, FPR is reported by the LOSO runners",
+      "mean_n_chars": 110.71158798283261,
+      "mean_digit_ratio": 0.08115110863574414,
+      "mean_upper_ratio": 0.1203145504229738,
+      "share_with_double_space": 0.13948497854077252
+    }
+  },
+  "source_id_acc_from_format": 0.8909580582651822,
+  "source_id_chance": 0.803428909252143,
+  "source_id_sources": [
+    "exais",
+    "imc25",
+    "mishra",
+    "moz",
+    "smishtank"
+  ],
+  "imc25_vs_rest_auc_from_format": 0.9641913737390617,
+  "exais_vs_rest_auc_from_format": 0.947145992199059,
+  "imc25_row_share": 0.803428909252143,
+  "exais_row_share": 0.07652642296449567
+}

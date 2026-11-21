@@ -1,0 +1,138 @@
+{
+  "note": "pool prevalence is positive-heavy; IMC'25 dominates the rows and has only 3 ham, so no pool-level accuracy or F1 is a headline; FPR is reported on the both-class sources (mishra, moz) and separately on the exais ham-only fold; imc25 and smishtank report recall only; exais never enters a both-class macro",
+  "rule": "Highest train-split out-of-fold macro PR-AUC over the two both-class sources (mishra, moz). Tie-break, on those same two sources only: lower train-OOF FPR at the OOF-fixed 1% threshold, then higher train-OOF recall. Test-split and LOSO numbers are not inputs; fpr_only sources are never inputs.",
+  "evidence": "train split only, 5-fold OOF at seed 42; test split and LOSO folds untouched",
+  "n_train": 19487,
+  "n_train_both_classes": 1874,
+  "fpr_only_sources_excluded_from_selection": [
+    "exais"
+  ],
+  "ranked": [
+    {
+      "model": "svm",
+      "oof_macro_pr_auc": 0.9752611883789012,
+      "oof_tau": 0.4396899648973519,
+      "oof_fpr": 0.005809731299927378,
+      "oof_recall": 0.7887323943661971,
+      "oof_cost_tau": 0.29339613877974285,
+      "oof_by_source": {
+        "moz": {
+          "n_pos": 349,
+          "n_neg": 1142,
+          "recall": 0.8481375358166189,
+          "fpr": 0.0043782837127845885,
+          "pr_auc": 0.9863453886688962
+        },
+        "mishra": {
+          "n_pos": 148,
+          "n_neg": 235,
+          "recall": 0.6486486486486487,
+          "fpr": 0.01276595744680851,
+          "pr_auc": 0.9641769880889062
+        }
+      }
+    },
+    {
+      "model": "lr",
+      "oof_macro_pr_auc": 0.9641788166238152,
+      "oof_tau": 0.6795065295693177,
+      "oof_fpr": 0.002904865649963689,
+      "oof_recall": 0.6961770623742455,
+      "oof_cost_tau": 0.5776146796394046,
+      "oof_by_source": {
+        "moz": {
+          "n_pos": 349,
+          "n_neg": 1142,
+          "recall": 0.7564469914040115,
+          "fpr": 0.0017513134851138354,
+          "pr_auc": 0.9758106566340965
+        },
+        "mishra": {
+          "n_pos": 148,
+          "n_neg": 235,
+          "recall": 0.5540540540540541,
+          "fpr": 0.00851063829787234,
+          "pr_auc": 0.9525469766135338
+        }
+      }
+    },
+    {
+      "model": "cnb",
+      "oof_macro_pr_auc": 0.8156477327034166,
+      "oof_tau": 0.9859138669872762,
+      "oof_fpr": 0.002178649237472767,
+      "oof_recall": 0.15492957746478872,
+      "oof_cost_tau": 0.8722520639500796,
+      "oof_by_source": {
+        "moz": {
+          "n_pos": 349,
+          "n_neg": 1142,
+          "recall": 0.0,
+          "fpr": 0.0,
+          "pr_auc": 0.7161955784493035
+        },
+        "mishra": {
+          "n_pos": 148,
+          "n_neg": 235,
+          "recall": 0.5202702702702703,
+          "fpr": 0.01276595744680851,
+          "pr_auc": 0.9150998869575296
+        }
+      }
+    },
+    {
+      "model": "mnb",
+      "oof_macro_pr_auc": 0.8156477327034164,
+      "oof_tau": 0.9975383218114144,
+      "oof_fpr": 0.002178649237472767,
+      "oof_recall": 0.15492957746478872,
+      "oof_cost_tau": 0.9753276065294109,
+      "oof_by_source": {
+        "moz": {
+          "n_pos": 349,
+          "n_neg": 1142,
+          "recall": 0.0,
+          "fpr": 0.0,
+          "pr_auc": 0.7161955784493035
+        },
+        "mishra": {
+          "n_pos": 148,
+          "n_neg": 235,
+          "recall": 0.5202702702702703,
+          "fpr": 0.01276595744680851,
+          "pr_auc": 0.9150998869575294
+        }
+      }
+    },
+    {
+      "model": "dummy",
+      "oof_macro_pr_auc": 0.3353704263365649,
+      "oof_tau": 1.852716659182757,
+      "oof_fpr": 0.0,
+      "oof_recall": 0.0,
+      "oof_cost_tau": Infinity,
+      "oof_by_source": {
+        "moz": {
+          "n_pos": 349,
+          "n_neg": 1142,
+          "recall": 0.0,
+          "fpr": 0.0,
+          "pr_auc": 0.24144131312493075
+        },
+        "mishra": {
+          "n_pos": 148,
+          "n_neg": 235,
+          "recall": 0.0,
+          "fpr": 0.0,
+          "pr_auc": 0.42929953954819905
+        }
+      }
+    }
+  ],
+  "selected_model": "svm",
+  "not_inputs": [
+    "pool test split",
+    "LOSO folds",
+    "gold holdout"
+  ]
+}

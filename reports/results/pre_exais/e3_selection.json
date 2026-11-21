@@ -1,0 +1,134 @@
+{
+  "note": "pool prevalence 0.923; IMC'25 is 86% of pool rows and has only 3 ham, so no pool-level accuracy or F1 is a headline; FPR is reported on mishra and moz only; imc25 and smishtank report recall only",
+  "rule": "Highest train-split out-of-fold macro PR-AUC over the two both-class sources (mishra, moz). Tie-break: lower train-OOF FPR at the OOF-fixed 1% threshold, then higher train-OOF recall. Test-split and LOSO numbers are not inputs.",
+  "evidence": "train split only, 5-fold OOF at seed 42; test split and LOSO folds untouched",
+  "n_train": 18102,
+  "ranked": [
+    {
+      "model": "svm",
+      "oof_macro_pr_auc": 0.9691559601352064,
+      "oof_tau": 0.8068360157573471,
+      "oof_fpr": 0.009312320916905445,
+      "oof_recall": 0.9311624566024183,
+      "oof_cost_tau": 0.2925975392783081,
+      "oof_by_source": {
+        "moz": {
+          "n_pos": 349,
+          "n_neg": 1142,
+          "recall": 0.6045845272206304,
+          "fpr": 0.002626970227670753,
+          "pr_auc": 0.9815302747565076
+        },
+        "mishra": {
+          "n_pos": 169,
+          "n_neg": 251,
+          "recall": 0.8579881656804734,
+          "fpr": 0.027888446215139442,
+          "pr_auc": 0.9567816455139054
+        }
+      }
+    },
+    {
+      "model": "lr",
+      "oof_macro_pr_auc": 0.9565142545902148,
+      "oof_tau": 0.8766023388153054,
+      "oof_fpr": 0.009312320916905445,
+      "oof_recall": 0.918891416257632,
+      "oof_cost_tau": 0.5506342501450057,
+      "oof_by_source": {
+        "moz": {
+          "n_pos": 349,
+          "n_neg": 1142,
+          "recall": 0.4269340974212034,
+          "fpr": 0.002626970227670753,
+          "pr_auc": 0.9669127623035741
+        },
+        "mishra": {
+          "n_pos": 169,
+          "n_neg": 251,
+          "recall": 0.8284023668639053,
+          "fpr": 0.027888446215139442,
+          "pr_auc": 0.9461157468768554
+        }
+      }
+    },
+    {
+      "model": "cnb",
+      "oof_macro_pr_auc": 0.7386796552544956,
+      "oof_tau": 0.9999841786931146,
+      "oof_fpr": 0.009312320916905445,
+      "oof_recall": 0.8947683467017838,
+      "oof_cost_tau": 0.9857729516969009,
+      "oof_by_source": {
+        "moz": {
+          "n_pos": 349,
+          "n_neg": 1142,
+          "recall": 0.0,
+          "fpr": 0.0,
+          "pr_auc": 0.5608516826831697
+        },
+        "mishra": {
+          "n_pos": 169,
+          "n_neg": 251,
+          "recall": 0.6331360946745562,
+          "fpr": 0.0398406374501992,
+          "pr_auc": 0.9165076278258216
+        }
+      }
+    },
+    {
+      "model": "mnb",
+      "oof_macro_pr_auc": 0.7386793361922865,
+      "oof_tau": 0.9999986776912738,
+      "oof_fpr": 0.009312320916905445,
+      "oof_recall": 0.8947683467017838,
+      "oof_cost_tau": 0.9987951553826031,
+      "oof_by_source": {
+        "moz": {
+          "n_pos": 349,
+          "n_neg": 1142,
+          "recall": 0.0,
+          "fpr": 0.0,
+          "pr_auc": 0.5608510445587516
+        },
+        "mishra": {
+          "n_pos": 169,
+          "n_neg": 251,
+          "recall": 0.6331360946745562,
+          "fpr": 0.0398406374501992,
+          "pr_auc": 0.9165076278258216
+        }
+      }
+    },
+    {
+      "model": "dummy",
+      "oof_macro_pr_auc": 0.32868910657404804,
+      "oof_tau": 1.922933499067744,
+      "oof_fpr": 0.0,
+      "oof_recall": 0.0,
+      "oof_cost_tau": 0.9228644430633244,
+      "oof_by_source": {
+        "moz": {
+          "n_pos": 349,
+          "n_neg": 1142,
+          "recall": 0.0,
+          "fpr": 0.0,
+          "pr_auc": 0.2430252192032654
+        },
+        "mishra": {
+          "n_pos": 169,
+          "n_neg": 251,
+          "recall": 0.0,
+          "fpr": 0.0,
+          "pr_auc": 0.4143529939448307
+        }
+      }
+    }
+  ],
+  "selected_model": "svm",
+  "not_inputs": [
+    "pool test split",
+    "LOSO folds",
+    "gold holdout"
+  ]
+}
