@@ -1,0 +1,223 @@
+{
+  "scope": "pool test split; frozen models; thresholds unchanged",
+  "note": "E7 normaliser OFF, E8 normaliser ON; attacks applied to spam only; E10 masks every URL and scores link-less spam separately. Aggregates only.",
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "models": {
+    "svm": {
+      "tau": 0.4396899648973519,
+      "n_spam": 5194,
+      "n_ham": 896,
+      "baseline": {
+        "off": {
+          "recall": 0.9586060839430112,
+          "fpr": 0.013392857142857142
+        },
+        "on": {
+          "recall": 0.9695802849441664,
+          "fpr": 0.020089285714285716
+        }
+      },
+      "attacks": {
+        "off": {
+          "spacing": {
+            "recall_mean": 0.9433320498010525,
+            "recall_std": 0.0002401269019877871,
+            "n": 5194
+          },
+          "leet": {
+            "recall_mean": 0.7791682710820177,
+            "recall_std": 0.0016412157428499813,
+            "n": 5194
+          },
+          "homoglyph": {
+            "recall_mean": 0.9478244127839816,
+            "recall_std": 0.0023788670251380854,
+            "n": 5194
+          },
+          "url_obfuscation": {
+            "recall_mean": 0.9584135541008857,
+            "recall_std": 0.0,
+            "n": 5194
+          }
+        },
+        "on": {
+          "spacing": {
+            "recall_mean": 0.9560390193813374,
+            "recall_std": 0.0005520681085253781,
+            "n": 5194
+          },
+          "leet": {
+            "recall_mean": 0.8391734052111411,
+            "recall_std": 0.001179872693547051,
+            "n": 5194
+          },
+          "homoglyph": {
+            "recall_mean": 0.9804261327172378,
+            "recall_std": 0.00032723780731568395,
+            "n": 5194
+          },
+          "url_obfuscation": {
+            "recall_mean": 0.969772814786292,
+            "recall_std": 1.1102230246251565e-16,
+            "n": 5194
+          }
+        }
+      },
+      "checks": {
+        "off": {
+          "identity_recall": 0.9586060839430112,
+          "clean_recall": 0.9586060839430112
+        },
+        "on": {
+          "identity_recall": 0.9695802849441663,
+          "clean_recall": 0.9695802849441664
+        }
+      },
+      "e3_check": {
+        "aggregation": "unweighted macro over mishra + moz test rows",
+        "tau": 0.4396899648973519,
+        "expected": {
+          "recall": 0.8097794261175093,
+          "fpr": 0.009650435516672422
+        },
+        "observed": {
+          "recall": 0.8097794261175093,
+          "fpr": 0.009650435516672422
+        }
+      },
+      "e10": {
+        "normal": {
+          "n": 6090,
+          "n_pos": 5194,
+          "n_neg": 896,
+          "recall": 0.9695802849441664,
+          "fpr": 0.020089285714285716
+        },
+        "url_masked": {
+          "n": 6090,
+          "n_pos": 5194,
+          "n_neg": 896,
+          "recall": 0.9663072776280324,
+          "fpr": 0.013392857142857142
+        },
+        "spam_linkless": {
+          "n": 5016,
+          "n_pos": 5016,
+          "n_neg": 0,
+          "recall": 0.970494417862839,
+          "fpr": NaN
+        }
+      }
+    },
+    "mmbert_base": {
+      "tau": 0.9609955853565144,
+      "n_spam": 5194,
+      "n_ham": 896,
+      "baseline": {
+        "off": {
+          "recall": 0.980747015787447,
+          "fpr": 0.011160714285714286
+        },
+        "on": {
+          "recall": 0.9805544859453216,
+          "fpr": 0.011160714285714286
+        }
+      },
+      "attacks": {
+        "off": {
+          "spacing": {
+            "recall_mean": 0.9671415736105763,
+            "recall_std": 0.002673940014888931,
+            "n": 5194
+          },
+          "leet": {
+            "recall_mean": 0.9479527660120652,
+            "recall_std": 0.002180116512830552,
+            "n": 5194
+          },
+          "homoglyph": {
+            "recall_mean": 0.9740084713130536,
+            "recall_std": 0.0004715998734661572,
+            "n": 5194
+          },
+          "url_obfuscation": {
+            "recall_mean": 0.980747015787447,
+            "recall_std": 0.0,
+            "n": 5194
+          }
+        },
+        "on": {
+          "spacing": {
+            "recall_mean": 0.9670132203824927,
+            "recall_std": 0.002594196243281679,
+            "n": 5194
+          },
+          "leet": {
+            "recall_mean": 0.9490437684507764,
+            "recall_std": 0.0022470981132090306,
+            "n": 5194
+          },
+          "homoglyph": {
+            "recall_mean": 0.9801694262610705,
+            "recall_std": 0.0001571999578220524,
+            "n": 5194
+          },
+          "url_obfuscation": {
+            "recall_mean": 0.9805544859453216,
+            "recall_std": 0.0,
+            "n": 5194
+          }
+        }
+      },
+      "checks": {
+        "off": {
+          "identity_recall": 0.980747015787447,
+          "clean_recall": 0.980747015787447
+        },
+        "on": {
+          "identity_recall": 0.9805544859453216,
+          "clean_recall": 0.9805544859453216
+        }
+      },
+      "e3_check": {
+        "aggregation": "unweighted macro over mishra + moz test rows",
+        "tau": 0.9609955853565144,
+        "expected": {
+          "recall": 0.8890298653132931,
+          "fpr": 0.0056022408963585435
+        },
+        "observed": {
+          "recall": 0.8890298653132931,
+          "fpr": 0.0056022408963585435
+        }
+      },
+      "e10": {
+        "normal": {
+          "n": 6090,
+          "n_pos": 5194,
+          "n_neg": 896,
+          "recall": 0.9805544859453216,
+          "fpr": 0.011160714285714286
+        },
+        "url_masked": {
+          "n": 6090,
+          "n_pos": 5194,
+          "n_neg": 896,
+          "recall": 0.9790142472083173,
+          "fpr": 0.014508928571428572
+        },
+        "spam_linkless": {
+          "n": 5016,
+          "n_pos": 5016,
+          "n_neg": 0,
+          "recall": 0.9804625199362041,
+          "fpr": NaN
+        }
+      }
+    }
+  }
+}

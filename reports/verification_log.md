@@ -1083,3 +1083,156 @@ out-of-source brittleness, not something this phase measured.
   URL.
 - No audit of how realistic the synthetic gold hams are.
 - Phase 1 outputs are not committed.
+
+## 2026-11-21 — gold bootstrap CIs, E-recal, E7-E10 evasion
+
+Text-free entry. No message text, gold row, id or note appears here or in any
+output file. Gold was not used for tuning or selection.
+
+### Gold bootstrap CIs — `reports/results/e6_gold_v2_bootstrap.json`
+
+Percentile bootstrap, 1,000 resamples, fixed seed 2026. Frozen models were
+re-scored with no refit because per-row gold scores were not saved; this is a
+deterministic repeat of the gold pass, not a new look. Aggregates only.
+
+| gold | model | n_pos / n_neg | recall [95% CI] | FPR [95% CI] | PR-AUC [95% CI] |
+|---|---|---:|---|---|---|
+| v1 | svm | 74 / 59 | 0.7162 [0.6103, 0.8195] | 0.4915 [0.3548, 0.6207] | 0.7479 [0.6500, 0.8528] |
+| v1 | mmBERT-base | 74 / 59 | 0.8784 [0.7887, 0.9481] | 0.5424 [0.4151, 0.6740] | 0.8767 [0.8112, 0.9282] |
+| v1 | dummy | 74 / 59 | 0.0000 [0.0000, 0.0000] | 0.0000 [0.0000, 0.0000] | 0.5564 [0.4737, 0.6391] |
+| v2 | svm | 23 / 35 | 0.6957 [0.5000, 0.8696] | 0.5429 [0.3684, 0.7059] | 0.6850 [0.5114, 0.8479] |
+| v2 | mmBERT-base | 23 / 35 | 1.0000 [1.0000, 1.0000] | 0.4857 [0.3233, 0.6452] | 0.8483 [0.7175, 0.9419] |
+| v2 | dummy | 23 / 35 | 0.0000 [0.0000, 0.0000] | 0.0000 [0.0000, 0.0000] | 0.3966 [0.2586, 0.5177] |
+
+**v2 recall is degenerate.** mmBERT-base flags 23/23 positives, so every
+bootstrap resample gives recall 1.0 and the interval is [1.0, 1.0]. That is a
+property of a tiny, easy positive set, not a precise estimate. The v2 FPR CI
+is 35 ham rows wide and must be read as such. The dummy PR-AUC is the base-rate
+line for each gold set (v1 0.5564, v2 0.3966); every model PR-AUC sits above
+it, so ranking survives even where the threshold does not.
+
+### E-recal — `reports/results/e_recal.json`
+
+Recalibrate `tau` on `k` labelled target-domain ham under LOSO, then evaluate
+on the remaining held-out rows. This is a descriptive stress test, **not a
+zero-shot result**: it uses labelled ham from the held-out source. `k` in
+{25, 50, 100}, 20 resplits, seed 42. The svm fold pipeline is refit with the
+E4 config and seed because no fold checkpoint was saved; mmBERT-small is
+re-scored from the frozen E4 checkpoints with no refit. No held-out row is used
+for model fitting.
+
+| model | held out | frozen recall / FPR | k=25 recall / FPR | k=50 recall / FPR | k=100 recall / FPR |
+|---|---|---:|---:|---:|---:|
+| svm | mishra | 0.4871 / 0.0245 | 0.5968 / 0.0673 | 0.4664 / 0.0322 | 0.4170 / 0.0240 |
+| svm | moz | 0.3187 / 0.3111 | 0.0309 / 0.0529 | 0.0083 / 0.0270 | 0.0073 / 0.0240 |
+| mmBERT-small | mishra | 0.4957 / 0.0545 | 0.4703 / 0.0630 | 0.4011 / 0.0350 | 0.3558 / 0.0213 |
+| mmBERT-small | moz | 0.7125 / 0.3812 | 0.0891 / 0.0560 | 0.0138 / 0.0204 | 0.0053 / 0.0200 |
+
+Reading:
+
+- **Recalibrating on labelled target ham does not fix `moz`.** Recall collapses
+  to about 0.01 at about 2% realised FPR (svm 0.0073 at k=100; small 0.0053).
+  That is close to base-rate behaviour for `moz` (prevalence 0.234): the score
+  ranking is not usable at this operating point.
+- On `mishra` the change is roughly neutral: the k=100 FPR is back near the
+  frozen FPR (svm 0.0240 vs 0.0245; small 0.0213 vs 0.0545) but recall does not
+  improve (svm 0.4170 vs 0.4871; small 0.3558 vs 0.4957).
+- The calibration FPR is ~1% by construction (1/k), but the **realised FPR
+  stays above 1% even at k=100** on every fold. The quantile does not transfer.
+- Never describe this as a fix. It is a diagnostic that shows the threshold,
+  not just the ranking, is the failure mode.
+
+### E7-E10 — `reports/results/e7_e10_evasion.json`
+
+One run. Frozen models, thresholds unchanged. E7 = normaliser OFF at inference,
+E8 = normaliser ON. Attacks are applied to spam only. E10 masks every URL and
+scores the link-less spam slice separately. Aggregates only.
+
+The E8 baseline is asserted against the E3 test macro (unweighted mean over
+`mishra` + `moz`) at the frozen E3 threshold. Both models reproduce the E3
+recall and FPR to `1e-6` (svm 0.809779 / 0.009650; mmBERT-base 0.889030 /
+0.005602). An identity attack (`url_obfuscation` with `p=0`) reproduces clean
+recall exactly for both views. `has_url` is a bool column on every pool row.
+
+Pool-wide baseline (all test spam / ham, not the E3 macro):
+
+| model | view | recall | FPR |
+|---|---|---:|---:|
+| svm | off | 0.9586 | 0.0134 |
+| svm | on | 0.9696 | 0.0201 |
+| mmBERT-base | off | 0.9807 | 0.0112 |
+| mmBERT-base | on | 0.9806 | 0.0112 |
+
+Spam recall under attack, mean ± std over seeds 0/1/2 (n = 5,194 spam):
+
+| model | view | spacing | leet | homoglyph | url obfuscation |
+|---|---|---:|---:|---:|---:|
+| svm | off | 0.9433 ± 0.0002 | 0.7792 ± 0.0016 | 0.9478 ± 0.0024 | 0.9584 ± 0.0000 |
+| svm | on | 0.9560 ± 0.0006 | 0.8392 ± 0.0012 | 0.9804 ± 0.0003 | 0.9698 ± 0.0000 |
+| mmBERT-base | off | 0.9671 ± 0.0027 | 0.9480 ± 0.0022 | 0.9740 ± 0.0005 | 0.9807 ± 0.0000 |
+| mmBERT-base | on | 0.9670 ± 0.0026 | 0.9490 ± 0.0022 | 0.9802 ± 0.0002 | 0.9806 ± 0.0000 |
+
+E10 (pool test, n = 6,090; link-less spam n = 5,016, all positive):
+
+| model | view | n | recall | FPR |
+|---|---|---:|---:|---:|
+| svm | normal | 6,090 | 0.9696 | 0.0201 |
+| svm | url_masked | 6,090 | 0.9663 | 0.0134 |
+| svm | spam_linkless | 5,016 | 0.9705 | — |
+| mmBERT-base | normal | 6,090 | 0.9806 | 0.0112 |
+| mmBERT-base | url_masked | 6,090 | 0.9790 | 0.0145 |
+| mmBERT-base | spam_linkless | 5,016 | 0.9805 | — |
+
+Reading:
+
+- Leetspeak is the strongest single attack for svm: recall falls 0.9586 →
+  0.7792 with the normaliser OFF, and the normaliser recovers only to 0.8392.
+  mmBERT-base is much less sensitive (0.9807 → 0.9480 / 0.9490).
+- For svm, the normaliser ON raises clean recall (0.9586 → 0.9696) and raises
+  FPR slightly (0.0134 → 0.0201). Homoglyph recall improves because the
+  normaliser folds the look-alikes.
+- URL masking does not rescue a link-less slice: link-less spam recall is
+  already 0.9705 (svm) and 0.9805 (base), so a URL is not required for the
+  model to fire.
+- `spam_linkless` has no negatives, so FPR is undefined (`nan`), not zero.
+
+### F1-F5 pre-registration (written before the F run)
+
+Svm only. No gold. Folds: `mishra`, `moz`, `exais`. Macro is the unweighted
+mean over `mishra` + `moz`; ExAIS FPR is separate and never enters the macro.
+Each arm gets its own train-OOF 1% FPR threshold.
+
+Arms:
+
+- `baseline` — the E4 svm path, guard only.
+- `prevalence_50`, `prevalence_20`, `prevalence_05` — class reweighting to an
+  effective 50% / 20% / 5% spam training prevalence (`class_weight=None` plus
+  explicit sample weights), refit, LOSO.
+- `source_class_balanced` — equal total weight per (source, class) cell,
+  refit, LOSO.
+- `format_masked` — digits→0, currency/phone/URL masks, case-fold; refit on the
+  masked view with normalisation off, LOSO; plus a rerun of the E5
+  source-vs-rest format AUC on the masked view.
+- `F1` — no refit: at the baseline frozen threshold, FP rate by the coarse
+  code-based ham category (bank-OTP, transactional, promo, chatty). Counts only,
+  no text, no row ids.
+- `F5` — diagnostic, no refit: Platt-calibrated scores on train OOF, EM prior
+  estimate on each held-out source, prior-adjusted threshold. Assumes `p(x|y)`
+  is fixed.
+
+Success rule, fixed before any arm runs: **macro LOSO FPR at the arm's own
+frozen 1% threshold must fall by at least 0.05 versus the baseline, while macro
+LOSO PR-AUC may fall by at most 0.02.** All arms are reported, including
+failures.
+
+Guard, checked before any other arm: the baseline arm through this module's
+own code path must reproduce the E4 svm macro (recall 0.402875, FPR 0.167811,
+PR-AUC 0.547261) to `1e-6`. If it does not, the run stops and nothing else is
+reported.
+
+Time-box: if one arm takes more than 15 minutes of compute, it is rerun on
+`moz` + `mishra` only and that is stated. F6 (class-conditional conformal plus
+k=100 local calibration) and F7 (unfrozen mmBERT-small on `moz`, stop at 15
+minutes) are optional and run only if F1-F5 finish early; if skipped, that is
+stated. No arm touches gold.
+
