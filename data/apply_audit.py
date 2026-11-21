@@ -248,7 +248,11 @@ def main() -> int:
         for row in disagree.itertuples()
         if row.reviewer_y3 != row.y3 and row.source not in accepted_reasons
     }
-    result = build(label_overrides=overrides)
+    exclusion_path = out / "dedup_exclusions.json"
+    dedup_exclusions = (
+        json.loads(exclusion_path.read_text()) if exclusion_path.exists() else None
+    )
+    result = build(label_overrides=overrides, dedup_exclusions=dedup_exclusions)
     result["audit"]["label_audit"] = {
         "review_file": str(review_path),
         "reviewed": int(len(df)),

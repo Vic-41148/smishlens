@@ -2,31 +2,58 @@
   "seed": 42,
   "label_overrides": {
     "n": 8,
-    "applied_before_dedup": true
+    "applied_before_dedup": true,
+    "n_skipped_ham_only": 0,
+    "skipped_sources": []
   },
   "pool_sources": [
     "imc25",
     "mishra",
     "moz",
-    "smishtank"
+    "smishtank",
+    "exais"
   ],
+  "ham_only_sources": [
+    "exais"
+  ],
+  "fpr_only_sources": [
+    "exais"
+  ],
+  "ham_only_dropped_positives": {
+    "exais": 2350
+  },
+  "ham_only": {
+    "exais": {
+      "raw_rows": 5240,
+      "raw_positives": 2350,
+      "raw_ham": 2890,
+      "dropped_positives": 2350,
+      "kept_ham": 2330,
+      "labels_overridden": 0
+    }
+  },
   "ood_only_sources": [
     "wspr",
     "africa"
   ],
   "excluded_sources": {
-    "exais": "dropped 2026-11-21 after the label audit: its 'spam' class is bulk/unsolicited (benign quotes, operator notices), 30% binary disagreement (Wilson 21.9-39.6%); a class-definition mismatch, not row noise",
     "africa": "fully synthetic (is_synthetic=1 on every row); roadmap \u00a74.1 forbids synthetic rows in a headline test set",
     "wspr": "68,029 recall-only phishing messages; kept as an OOD source so it cannot swamp the pool's class balance"
   },
+  "exais_ham_noise": {
+    "review_sample_rows": 50,
+    "flagged_promo_labelled_ham": 3,
+    "rate": 0.06,
+    "note": "original ham labels kept unchanged; the 3 rows are promos labelled ham, so about 6% of ExAIS ham is label noise. No correction was applied."
+  },
   "dedup": {
     "within": {
-      "rows_in": 43463,
+      "rows_in": 46353,
       "label_conflict_texts": 4,
       "dropped_label_conflict": 8,
-      "dropped_exact_duplicate": 9259,
-      "dropped_normalised": 793,
-      "rows_out": 33403,
+      "dropped_exact_duplicate": 9711,
+      "dropped_normalised": 898,
+      "rows_out": 35736,
       "per_source": {
         "imc25": {
           "rows_in": 33869,
@@ -55,32 +82,50 @@
           "dropped_exact_duplicate": 10,
           "dropped_normalised": 165,
           "rows_out": 887
+        },
+        "exais": {
+          "rows_in": 2890,
+          "dropped_label_conflict": 0,
+          "dropped_exact_duplicate": 452,
+          "dropped_normalised": 105,
+          "rows_out": 2333
         }
       }
     },
     "vs_uci": {
-      "exact": 4876,
-      "near": 190,
-      "rows_out": 28337,
+      "excluded": 8,
+      "exact": 4878,
+      "near": 234,
+      "rows_out": 30616,
       "per_source": {
         "imc25": {
           "rows_in": 24462,
+          "excluded": 0,
           "exact": 0,
           "near": 0
         },
         "mishra": {
           "rows_in": 5724,
+          "excluded": 8,
           "exact": 4876,
-          "near": 190
+          "near": 234
         },
         "moz": {
           "rows_in": 2330,
+          "excluded": 0,
           "exact": 0,
           "near": 0
         },
         "smishtank": {
           "rows_in": 887,
+          "excluded": 0,
           "exact": 0,
+          "near": 0
+        },
+        "exais": {
+          "rows_in": 2333,
+          "excluded": 0,
+          "exact": 2,
           "near": 0
         }
       }
@@ -91,8 +136,8 @@
         "dropped": 0
       },
       "mishra": {
-        "rows": 658,
-        "dropped": 2
+        "rows": 606,
+        "dropped": 7
       },
       "moz": {
         "rows": 2330,
@@ -100,34 +145,68 @@
       },
       "smishtank": {
         "rows": 887,
-        "dropped": 52
+        "dropped": 161
+      },
+      "exais": {
+        "rows": 2331,
+        "dropped": 1
       }
     }
   },
+  "dedup_exclusions": {
+    "n": 8,
+    "applied": 8,
+    "reason": "audited pairwise near-dup of a UCI row; tf-only cosine 0.86-0.90, missed by the 0.90 rule",
+    "reasons": [
+      "audited pairwise near-dup of a UCI row; tf-only cosine 0.86-0.90, missed by the 0.90 rule"
+    ],
+    "row_ids": [
+      "20c93b03a1b52538",
+      "23fa6e94f1b3a001",
+      "268964bdf902d43a",
+      "30631ae09fd992ab",
+      "75961b28514f7681",
+      "79ab3811150d35e0",
+      "d5b861abdc6b2c90",
+      "f202a03d70916045"
+    ],
+    "applied_at": "UCI overlap"
+  },
   "per_source_stages": {
     "raw": {
+      "exais": 5240,
+      "imc25": 33869,
+      "mishra": 5971,
+      "moz": 2561,
+      "smishtank": 1062
+    },
+    "after_ham_only_filter": {
+      "exais": 2890,
       "imc25": 33869,
       "mishra": 5971,
       "moz": 2561,
       "smishtank": 1062
     },
     "after_within_dedup": {
+      "exais": 2333,
       "imc25": 24462,
       "mishra": 5724,
       "moz": 2330,
       "smishtank": 887
     },
     "after_uci_overlap": {
+      "exais": 2331,
       "imc25": 24462,
-      "mishra": 658,
+      "mishra": 606,
       "moz": 2330,
       "smishtank": 887
     },
     "final": {
+      "exais": 2330,
       "imc25": 24462,
-      "mishra": 656,
+      "mishra": 599,
       "moz": 2330,
-      "smishtank": 835
+      "smishtank": 726
     }
   },
   "per_source": {
@@ -145,11 +224,11 @@
       "near_dup_dropped_vs_earlier_sources": 0
     },
     "mishra": {
-      "rows": 656,
-      "ham": 392,
-      "positives": 264,
+      "rows": 599,
+      "ham": 367,
+      "positives": 232,
       "languages": {},
-      "near_dup_dropped_vs_earlier_sources": 2
+      "near_dup_dropped_vs_earlier_sources": 7
     },
     "moz": {
       "rows": 2330,
@@ -161,11 +240,20 @@
       "near_dup_dropped_vs_earlier_sources": 0
     },
     "smishtank": {
-      "rows": 835,
+      "rows": 726,
       "ham": 0,
-      "positives": 835,
+      "positives": 726,
       "languages": {},
-      "near_dup_dropped_vs_earlier_sources": 52
+      "near_dup_dropped_vs_earlier_sources": 161
+    },
+    "exais": {
+      "rows": 2330,
+      "ham": 2330,
+      "positives": 0,
+      "languages": {
+        "en": 2330
+      },
+      "near_dup_dropped_vs_earlier_sources": 1
     }
   },
   "ood_sources": {
@@ -194,49 +282,54 @@
   },
   "splits": {
     "train": {
-      "rows": 18102,
-      "positives": 16706,
-      "ham": 1396,
-      "prevalence": 0.922881,
+      "rows": 19487,
+      "positives": 16616,
+      "ham": 2871,
+      "prevalence": 0.852671,
       "per_source": {
         "imc25": 15657,
         "moz": 1491,
-        "smishtank": 534,
-        "mishra": 420
+        "exais": 1491,
+        "smishtank": 465,
+        "mishra": 383
       }
     },
     "cal": {
-      "rows": 4524,
-      "positives": 4176,
-      "ham": 348,
-      "prevalence": 0.923077,
+      "rows": 4870,
+      "positives": 4153,
+      "ham": 717,
+      "prevalence": 0.852772,
       "per_source": {
-        "imc25": 3913,
-        "moz": 372,
-        "smishtank": 134,
-        "mishra": 105
+        "imc25": 3912,
+        "moz": 373,
+        "exais": 373,
+        "smishtank": 116,
+        "mishra": 96
       }
     },
     "test": {
-      "rows": 5657,
-      "positives": 5222,
-      "ham": 435,
-      "prevalence": 0.923104,
+      "rows": 6090,
+      "positives": 5194,
+      "ham": 896,
+      "prevalence": 0.852874,
       "per_source": {
-        "imc25": 4892,
-        "moz": 467,
-        "smishtank": 167,
-        "mishra": 131
+        "imc25": 4893,
+        "moz": 466,
+        "exais": 466,
+        "smishtank": 145,
+        "mishra": 120
       }
     }
   },
-  "pool_rows": 28283,
-  "pool_prevalence": 0.922957,
+  "pool_rows": 30447,
+  "pool_prevalence": 0.852728,
   "near_dup_threshold": 0.9,
-  "dataset_sha256_16": "4b202c8f6ea707da",
+  "near_dup_rule": "char 3-4-gram tf cosine, l2-normalised, use_idf=False, min_df=1, fitted on the two frames being compared; corpus-independent",
+  "dataset_sha256_16": "0bb9f4c85b6760d6",
   "notes": [
     "Splits are stratified by (source, y) with seed 42 and are frozen; do not redraw.",
     "Prevalence is far above field prevalence because the pool is positive-heavy by construction (IMC'25 is positives-only). Report PPV at realistic prevalence, never raw precision.",
+    "ExAIS contributes ham only: its original ham labels are kept and every spam row is dropped before dedup. It trains as a negative source and is evaluated as an FPR-only LOSO fold, excluded from the both-class macro.",
     "The split is committed only as a text-free manifest; processed text stays git-ignored for the unclear-licence sources."
   ],
   "label_audit": {

@@ -35,6 +35,11 @@ def main() -> int:
     ap.add_argument("--raw", default=str(ROOT / "data" / "raw"))
     ap.add_argument("--out", default=str(ROOT / "data" / "processed" / "modern"))
     ap.add_argument("--overrides", default=None, help="JSON {row_id: y3} corrections")
+    ap.add_argument(
+        "--dedup-exclusions",
+        default=None,
+        help="JSON {row_id: reason} audited near-dups missed by the rule",
+    )
     args = ap.parse_args()
 
     overrides = None
@@ -44,7 +49,19 @@ def main() -> int:
         overrides = json.loads(override_path.read_text())
         print(f"  overrides         {override_path}")
 
-    result = build(raw=Path(args.raw), label_overrides=overrides)
+    dedup_exclusions = None
+    exclusion_path = (
+        Path(args.dedup_exclusions) if args.dedup_exclusions else out / "dedup_exclusions.json"
+    )
+    if exclusion_path.exists():
+        dedup_exclusions = json.loads(exclusion_path.read_text())
+        print(f"  dedup exclusions  {exclusion_path}")
+
+    result = build(
+        raw=Path(args.raw),
+        label_overrides=overrides,
+        dedup_exclusions=dedup_exclusions,
+    )
     write_pool(result, out)
 
     audit = result["audit"]
@@ -60,6 +77,8 @@ def main() -> int:
     print(f"  folds             {len(result['loso']['folds'])}")
     if overrides:
         print(f"  label overrides   {audit['label_overrides']['n']}")
+    if dedup_exclusions:
+        print(f"  dedup exclusions  {audit['dedup_exclusions']['applied']}")
     return 0
 
 

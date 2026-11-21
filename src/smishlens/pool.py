@@ -26,14 +26,19 @@ from smishlens.normalise import normalise
 from smishlens.sources import LOADERS, load_uci_from_raw
 
 # Sources that form the pool, in dedup-priority order (first wins a duplicate).
-# ExAIS was dropped on 2026-11-21: its "spam" class is bulk/unsolicited, not
-# smishing (label audit: 30% binary disagreement, Wilson 21.9-39.6%, 27 of 30
-# being benign quotes and operator notices). See data/audit and the log.
-POOL_SOURCES = ("imc25", "mishra", "moz", "smishtank")
+# ExAIS is back on 2026-11-21, HAM-ONLY: its original ham labels are used and
+# every spam row is dropped. Its "spam" class is bulk/unsolicited, not smishing
+# (label audit: 30% binary disagreement, Wilson 21.9-39.6%), so it is never a
+# positive source. The ham side is real Nigerian-English SMS and is the only
+# bank/service-notification ham the pool has. No ExAIS label is overridden.
+POOL_SOURCES = ("imc25", "mishra", "moz", "smishtank", "exais")
+# Sources kept for one class only. Their positives are dropped before dedup and
+# they are evaluated as FPR-only LOSO folds, never inside the both-class macro.
+HAM_ONLY_SOURCES = ("exais",)
 # Available but deliberately outside the pool: WSPR is a 68k recall-only OOD
 # set and the Africa set is fully synthetic (roadmap §4.1: never in a test set).
 OOD_SOURCES = ("wspr", "africa")
-DROPPED_SOURCES = {"exais": "class-definition mismatch: bulk/benign positives, not row noise"}
+DROPPED_SOURCES: dict[str, str] = {}
 BOTH_CLASSES = ("moz", "mishra")
 
 NEAR_DUP_THRESHOLD = 0.90
@@ -47,6 +52,21 @@ def load_pool(sources=POOL_SOURCES, raw: Path | None = None) -> pd.DataFrame:
     return frame[SCHEMA]
 
 
+def drop_ham_only_spam(frame: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, int]]:
+    """Keep the original labels of ham-only sources, discard all their positives.
+
+    No row is relabelled and no heuristic is applied: an ExAIS row is either its
+    original ``ham`` or it is gone. This runs before dedup so a discarded ExAIS
+    positive cannot win a duplicate against a real negative from another source.
+    """
+    dropped = {}
+    for src in HAM_ONLY_SOURCES:
+        mask = (frame["source"] == src) & (frame["y"] == 1)
+        dropped[src] = int(mask.sum())
+    keep = ~frame["source"].isin(HAM_ONLY_SOURCES) | (frame["y"] == 0)
+    return frame.loc[keep].reset_index(drop=True), dropped
+
+
 def row_id(source: str, text: str) -> str:
     """Stable id that survives reordering: no text is exposed."""
     return hashlib.sha256(f"{source}\x1f{text}".encode()).hexdigest()[:16]
@@ -56,38 +76,45 @@ def _normalised_key(text: str) -> str:
     return " ".join(normalise(str(text), mask=True).split()).lower()
 
 
-def _pairs_above(mat_a, mat_b, thr: float, chunk: int = 256) -> np.ndarray:
-    """Rows of A with any cosine >= thr against B. Returns a bool mask over A."""
-    keep = np.ones(mat_a.shape[0], dtype=bool)
-    if mat_b.shape[1] == 0:
-        return keep
-    mat_b = mat_b.T.tocsc()
-    for start in range(0, mat_a.shape[0], chunk):
-        sims = (mat_a[start : start + chunk] @ mat_b).toarray()
-        keep[start : start + chunk] = sims.max(axis=1) < thr
-    return keep
+def near_dup_scores(frame: pd.DataFrame, ref: pd.DataFrame) -> np.ndarray:
+    """Max char 3-4-gram cosine of each ``frame`` row against any ``ref`` row.
+
+    Corpus-independent by construction: the vectoriser is fitted on exactly the
+    two frames being compared, with ``use_idf=False`` and ``min_df=1``. There is
+    no idf and no document-frequency pruning, so adding, removing or reordering
+    rows anywhere else in the corpus cannot change a score. The old rule fitted
+    one pool-wide idf vocabulary, which pushed known Mishra-vs-UCI near-duplicates
+    below 0.90 (36 rows) whenever the rest of the pool was in the fit.
+    """
+    if ref.empty or frame.empty:
+        return np.zeros(len(frame), dtype=float)
+    docs = pd.concat([ref["text"], frame["text"]]).astype(str).tolist()
+    vec = TfidfVectorizer(
+        analyzer="char",
+        ngram_range=(3, 4),
+        min_df=1,
+        use_idf=False,
+        sublinear_tf=True,
+        norm="l2",
+    )
+    vec.fit(docs)
+    mat_frame = vec.transform(frame["text"].astype(str))
+    mat_ref = vec.transform(ref["text"].astype(str))
+    if mat_ref.shape[1] == 0:
+        return np.zeros(len(frame), dtype=float)
+    mat_ref = mat_ref.T.tocsc()
+    out = np.zeros(mat_frame.shape[0], dtype=float)
+    for start in range(0, mat_frame.shape[0], 256):
+        sims = (mat_frame[start : start + 256] @ mat_ref).toarray()
+        out[start : start + 256] = sims.max(axis=1)
+    return out
 
 
 def near_dup_mask(
     frame: pd.DataFrame, ref: pd.DataFrame, thr: float = NEAR_DUP_THRESHOLD
 ) -> np.ndarray:
     """Bool mask over ``frame``: True where no ``ref`` row is within ``thr`` cosine."""
-    if ref.empty or frame.empty:
-        return np.ones(len(frame), dtype=bool)
-    docs = pd.concat([ref["text"], frame["text"]]).astype(str).tolist()
-    # min_df=2 keeps the matrix small on the real pool, but on a handful of
-    # documents it would collapse the vocabulary to the few shared n-grams and
-    # make unrelated texts look identical.
-    vec = TfidfVectorizer(
-        analyzer="char",
-        ngram_range=(3, 4),
-        min_df=2 if len(docs) >= 1000 else 1,
-        sublinear_tf=True,
-    )
-    vec.fit(docs)
-    mat_frame = vec.transform(frame["text"].astype(str))
-    mat_ref = vec.transform(ref["text"].astype(str))
-    return _pairs_above(mat_frame, mat_ref, thr)
+    return near_dup_scores(frame, ref) < thr
 
 
 def drop_near_dups(
@@ -145,13 +172,50 @@ def dedup_within(frame: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     }
 
 
+def apply_dedup_exclusions(
+    frame: pd.DataFrame,
+    exclusions: dict[str, str] | None,
+    stage: str = "UCI overlap",
+) -> tuple[pd.DataFrame, np.ndarray]:
+    """Drop audited row ids and return a mask over ``frame`` (True = excluded).
+
+    ``exclusions`` is a committed, text-free ``{row_id: reason}`` list for
+    near-duplicates that the rule misses. Every id must be present in ``frame``
+    at ``stage``: a stale id means the pool changed underneath the list, so it
+    raises instead of silently doing nothing.
+    """
+    if not exclusions:
+        return frame, np.zeros(len(frame), dtype=bool)
+    ids = pd.Series(
+        [row_id(s, t) for s, t in zip(frame["source"], frame["text"], strict=True)],
+        index=frame.index,
+    )
+    missing = sorted(set(exclusions) - set(ids))
+    if missing:
+        raise ValueError(
+            f"{len(missing)} dedup exclusion id(s) not present at {stage}: {missing[:5]}"
+        )
+    mask = ids.isin(exclusions).to_numpy()
+    return frame.loc[~mask].reset_index(drop=True), mask
+
+
 def drop_uci_overlap(
-    frame: pd.DataFrame, uci: pd.DataFrame, thr: float = NEAR_DUP_THRESHOLD
+    frame: pd.DataFrame,
+    uci: pd.DataFrame,
+    thr: float = NEAR_DUP_THRESHOLD,
+    dedup_exclusions: dict[str, str] | None = None,
 ) -> tuple[pd.DataFrame, dict]:
-    """Remove modern rows that duplicate the anchor, exact and near."""
+    """Remove modern rows that duplicate the anchor, exact and near.
+
+    Audited exclusions are applied first, so an excluded row is reported under
+    ``excluded`` and never silently counted as an exact or near duplicate.
+    """
+    before = frame
+    rows_in_src = frame["source"].value_counts()
+    frame, excluded_mask = apply_dedup_exclusions(frame, dedup_exclusions, stage="UCI overlap")
+    excluded_src = before.loc[excluded_mask, "source"].value_counts()
     uci_keys = set(uci["text"].map(_normalised_key))
     exact = frame["text"].map(_normalised_key).isin(uci_keys)
-    rows_in_src = frame["source"].value_counts()
     exact_src = frame.loc[exact, "source"].value_counts()
     frame = frame[~exact].reset_index(drop=True)
     keep = near_dup_mask(frame, uci, thr)
@@ -160,12 +224,14 @@ def drop_uci_overlap(
     per_source = {
         src: {
             "rows_in": int(rows_in_src.get(src, 0)),
+            "excluded": int(excluded_src.get(src, 0)),
             "exact": int(exact_src.get(src, 0)),
             "near": int(near_src.get(src, 0)),
         }
         for src in POOL_SOURCES
     }
     return frame, {
+        "excluded": int(excluded_mask.sum()),
         "exact": int(exact.sum()),
         "near": int((~keep).sum()),
         "rows_out": len(frame),
@@ -225,11 +291,17 @@ def make_loso_folds(frame: pd.DataFrame, split_of: pd.Series) -> dict:
     for src in POOL_SOURCES:
         held = frame["source"] == src
         train_mask = (frame["source"] != src) & (split_of == "train")
+        if src in BOTH_CLASSES:
+            kind = "both_classes"
+        elif src in HAM_ONLY_SOURCES:
+            kind = "fpr_only"
+        else:
+            kind = "recall_only"
         folds.append(
             {
                 "fold": f"heldout_{src}",
                 "held_out": src,
-                "kind": "both_classes" if src in BOTH_CLASSES else "recall_only",
+                "kind": kind,
                 "train_rule": f"split == 'train' and source != '{src}'",
                 "n_train": int(train_mask.sum()),
                 "n_eval": int(held.sum()),
@@ -263,20 +335,30 @@ def ood_stats(raw: Path | None = None) -> dict[str, dict]:
     return out
 
 
-def apply_label_overrides(frame: pd.DataFrame, overrides: dict[str, str]) -> pd.DataFrame:
+def apply_label_overrides(
+    frame: pd.DataFrame,
+    overrides: dict[str, str],
+    skip_sources: tuple[str, ...] = HAM_ONLY_SOURCES,
+) -> pd.DataFrame:
     """Apply ``{row_id: y3}`` corrections to a freshly loaded frame.
 
     Corrections are applied before dedup so a fixed label can also resolve a
     label conflict. Unknown ids raise: a stale review file must not silently
-    become a no-op.
+    become a no-op. Rows from ``skip_sources`` are never corrected: a ham-only
+    source keeps its original labels by definition, so its review corrections
+    are filtered rather than applied.
     """
     if not overrides:
         return frame
     frame = frame.copy()
     ids = [row_id(s, t) for s, t in zip(frame["source"], frame["text"], strict=True)]
+    src_of = dict(zip(ids, frame["source"], strict=True))
+    usable = {
+        rid: y3 for rid, y3 in overrides.items() if src_of.get(rid) not in skip_sources
+    }
     hit = 0
     for i, rid in enumerate(ids):
-        y3 = overrides.get(rid)
+        y3 = usable.get(rid)
         if y3 is None:
             continue
         if y3 not in ("ham", "spam", "smish"):
@@ -284,10 +366,10 @@ def apply_label_overrides(frame: pd.DataFrame, overrides: dict[str, str]) -> pd.
         frame.at[i, "y3"] = y3
         frame.at[i, "y"] = 0 if y3 == "ham" else 1
         hit += 1
-    missing = sorted(set(overrides) - set(ids))
+    missing = sorted(set(usable) - set(ids))
     if missing:
         raise ValueError(f"{len(missing)} override ids not in the pool: {missing[:5]}")
-    if hit != len(overrides):
+    if hit != len(usable):
         raise ValueError("override application mismatch")
     return frame
 
@@ -313,16 +395,29 @@ def build(
     raw: Path | None = None,
     seed: int = SEED,
     label_overrides: dict[str, str] | None = None,
+    dedup_exclusions: dict[str, str] | None = None,
 ) -> dict:
     """Return the frozen pool, its splits, folds, manifest and audit."""
-    raw_frame = load_pool(raw=raw)
-    raw_frame = apply_label_overrides(raw_frame, label_overrides or {})
+    overrides = label_overrides or {}
+    exclusions = dedup_exclusions or {}
+    raw_all = load_pool(raw=raw)
+    ids_all = [row_id(s, t) for s, t in zip(raw_all["source"], raw_all["text"], strict=True)]
+    src_of = dict(zip(ids_all, raw_all["source"], strict=True))
+    overrides_skipped = {
+        rid: src for rid, src in src_of.items() if rid in overrides and src in HAM_ONLY_SOURCES
+    }
+    exclusion_reasons = sorted(set(exclusions.values()))
+    raw_frame = apply_label_overrides(raw_all, overrides)
+    raw_frame, ham_only_dropped = drop_ham_only_spam(raw_frame)
     uci = load_uci_from_raw(raw)
 
     frame, within = dedup_within(raw_frame)
-    stages = {"raw": raw_frame["source"].value_counts().to_dict()}
+    stages = {
+        "raw": raw_all["source"].value_counts().to_dict(),
+        "after_ham_only_filter": raw_frame["source"].value_counts().to_dict(),
+    }
     stages["after_within_dedup"] = frame["source"].value_counts().to_dict()
-    frame, uci_overlap = drop_uci_overlap(frame, uci)
+    frame, uci_overlap = drop_uci_overlap(frame, uci, dedup_exclusions=exclusions)
     stages["after_uci_overlap"] = frame["source"].value_counts().to_dict()
     frame, cross = dedup_across_sources(frame)
     stages["final"] = frame["source"].value_counts().to_dict()
@@ -371,21 +466,53 @@ def build(
     audit = {
         "seed": seed,
         "label_overrides": {
-            "n": len(label_overrides or {}),
-            "applied_before_dedup": bool(label_overrides),
+            "n": len(overrides) - len(overrides_skipped),
+            "applied_before_dedup": bool(overrides) and len(overrides) > len(overrides_skipped),
+            "n_skipped_ham_only": len(overrides_skipped),
+            "skipped_sources": sorted(set(overrides_skipped.values())),
         },
         "pool_sources": list(POOL_SOURCES),
+        "ham_only_sources": list(HAM_ONLY_SOURCES),
+        "fpr_only_sources": list(HAM_ONLY_SOURCES),
+        "ham_only_dropped_positives": ham_only_dropped,
+        "ham_only": {
+            src: {
+                "raw_rows": int((raw_all["source"] == src).sum()),
+                "raw_positives": int(
+                    ((raw_all["source"] == src) & (raw_all["y"] == 1)).sum()
+                ),
+                "raw_ham": int(((raw_all["source"] == src) & (raw_all["y"] == 0)).sum()),
+                "dropped_positives": int(ham_only_dropped.get(src, 0)),
+                "kept_ham": int(
+                    ((frame["source"] == src) & (frame["y"] == 0)).sum()
+                ),
+                "labels_overridden": 0,
+            }
+            for src in HAM_ONLY_SOURCES
+        },
         "ood_only_sources": list(OOD_SOURCES),
         "excluded_sources": {
-            "exais": "dropped 2026-11-21 after the label audit: its 'spam' class is bulk/unsolicited "
-            "(benign quotes, operator notices), 30% binary disagreement (Wilson 21.9-39.6%); "
-            "a class-definition mismatch, not row noise",
             "africa": "fully synthetic (is_synthetic=1 on every row); roadmap §4.1 forbids "
             "synthetic rows in a headline test set",
             "wspr": "68,029 recall-only phishing messages; kept as an OOD source so it "
             "cannot swamp the pool's class balance",
         },
+        "exais_ham_noise": {
+            "review_sample_rows": 50,
+            "flagged_promo_labelled_ham": 3,
+            "rate": 0.06,
+            "note": "original ham labels kept unchanged; the 3 rows are promos labelled ham, "
+            "so about 6% of ExAIS ham is label noise. No correction was applied.",
+        },
         "dedup": {"within": within, "vs_uci": uci_overlap, "cross_source": cross},
+        "dedup_exclusions": {
+            "n": len(exclusions),
+            "applied": int(uci_overlap["excluded"]),
+            "reason": exclusion_reasons[0] if len(exclusion_reasons) == 1 else None,
+            "reasons": exclusion_reasons,
+            "row_ids": sorted(exclusions),
+            "applied_at": "UCI overlap",
+        },
         "per_source_stages": {
             stage: {k: int(v) for k, v in sorted(counts.items())}
             for stage, counts in stages.items()
@@ -396,12 +523,17 @@ def build(
         "pool_rows": int(len(frame)),
         "pool_prevalence": round(float(frame["y"].mean()), 6),
         "near_dup_threshold": NEAR_DUP_THRESHOLD,
+        "near_dup_rule": "char 3-4-gram tf cosine, l2-normalised, use_idf=False, "
+        "min_df=1, fitted on the two frames being compared; corpus-independent",
         "dataset_sha256_16": dataset_hash(frame),
         "notes": [
             "Splits are stratified by (source, y) with seed 42 and are frozen; do not redraw.",
             "Prevalence is far above field prevalence because the pool is positive-heavy by "
             "construction (IMC'25 is positives-only). Report PPV at realistic prevalence, "
             "never raw precision.",
+            "ExAIS contributes ham only: its original ham labels are kept and every spam row "
+            "is dropped before dedup. It trains as a negative source and is evaluated as an "
+            "FPR-only LOSO fold, excluded from the both-class macro.",
             "The split is committed only as a text-free manifest; processed text stays "
             "git-ignored for the unclear-licence sources.",
         ],
