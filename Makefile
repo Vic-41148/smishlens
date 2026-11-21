@@ -7,7 +7,7 @@ PY     := .venv/bin/python
 PIP    := .venv/bin/pip
 export PYTHONPATH := src
 
-.PHONY: setup test lint train app serve eda data clean
+.PHONY: setup test lint train app serve eda data summary clean
 
 setup:
 	python3 -m venv .venv
@@ -40,6 +40,11 @@ eda:
 data:
 	$(PY) data/download_data.py
 	$(PY) data/build_modern_pool.py
+
+# Regenerate docs/RESULTS_SUMMARY.md from reports/results/*.json. No hand-typed
+# numbers: the script is the only source of the document.
+summary:
+	$(PY) -m smishlens.results_summary
 
 clean:
 	rm -rf .pytest_cache .ruff_cache
