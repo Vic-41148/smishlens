@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.*
+.ipynb_checkpoints/
+
+# Raw data: PII-bearing and licence-restricted. Rebuild with data/download_data.py.
+data/raw/*
+!data/raw/.gitkeep
+
+# Model artefacts and checkpoints (regenerate; never commit weights)
+artifacts/*
+!artifacts/.gitkeep
+models/
+*.joblib
+*.pt
+*.bin
+*.safetensors
+*.onnx
+
+# Reports are committed, but keep generated junk out
+reports/figures/*.tmp
+.pytest_cache/
+.ruff_cache/
+.DS_Store
