@@ -1,6 +1,6 @@
 # Deployment plan
 
-Status: **prepared, not pushed**. `origin` already exists; you add `private`.
+Status: **live** at <https://smishlens.streamlit.app/>, served from the private repository. `origin` exists; `private` holds the bundle.
 
 Primary target: **Streamlit Community Cloud**, deployed from a private
 GitHub repository. Public repository: code and docs only, no artifact.

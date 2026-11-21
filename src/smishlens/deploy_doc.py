@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import re
 
-from smishlens.docs_gen import LICENCE, pool_stats
+from smishlens.docs_gen import LICENCE, LIVE_URL, pool_stats
 from smishlens.results_summary import ROOT, load, num
 
 OUT = ROOT / "docs" / "DEPLOYMENT.md"
@@ -477,7 +477,9 @@ def deployment() -> str:
     lines = [
         "# Deployment plan",
         "",
-        "Status: **prepared, not pushed**. `origin` already exists; you add `private`.",
+        "Status: **live** at "
+        f"<{LIVE_URL}>, served from the private repository. `origin` exists; "
+        "`private` holds the bundle.",
         "",
         "Primary target: **Streamlit Community Cloud**, deployed from a private",
         "GitHub repository. Public repository: code and docs only, no artifact.",

@@ -10,6 +10,8 @@ model that looks excellent in-pool degrades sharply when a whole source is
 held out, and the frozen 1% FPR threshold does not port. The demo is
 deliberately a triage aid, not a verdict.
 
+Live demo: **<https://smishlens.streamlit.app/>** (hosted from the private repository).
+
 ---
 
 ## 1. Problem
@@ -167,9 +169,9 @@ while macro PR-AUC fell by at most 0.02. **No arm is a fix.**
 
 ## 7. The demo app
 
-`streamlit run app/app.py`. `requirements.txt` at the repository root is
-the app-minimal install; Streamlit Community Cloud reads that file. The app
-shows:
+Live at **<https://smishlens.streamlit.app/>**. To run it locally: `streamlit run app/app.py`.
+`requirements.txt` at the repository root is the app-minimal install that
+Streamlit Community Cloud reads. The app shows:
 
 - a calibrated P(spam), the conformal set, and one band;
 - extracted URL(s) and basic message stats;

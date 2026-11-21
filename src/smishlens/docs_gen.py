@@ -21,6 +21,7 @@ from smishlens.results_summary import (
 )
 
 MANIFEST = ROOT / "data" / "processed" / "modern" / "split_manifest.csv"
+LIVE_URL = "https://smishlens.streamlit.app/"
 
 # Licence text is metadata from data/cards/, not a result number.
 LICENCE = {
@@ -185,6 +186,8 @@ def readme() -> str:
         "model that looks excellent in-pool degrades sharply when a whole source is",
         "held out, and the frozen 1% FPR threshold does not port. The demo is",
         "deliberately a triage aid, not a verdict.",
+        "",
+        f"Live demo: **<{LIVE_URL}>** (hosted from the private repository).",
         "",
         "---",
         "",
@@ -367,9 +370,9 @@ def readme() -> str:
         "",
         "## 7. The demo app",
         "",
-        "`streamlit run app/app.py`. `requirements.txt` at the repository root is",
-        "the app-minimal install; Streamlit Community Cloud reads that file. The app",
-        "shows:",
+        f"Live at **<{LIVE_URL}>**. To run it locally: `streamlit run app/app.py`.",
+        "`requirements.txt` at the repository root is the app-minimal install that",
+        "Streamlit Community Cloud reads. The app shows:",
         "",
         "- a calibrated P(spam), the conformal set, and one band;",
         "- extracted URL(s) and basic message stats;",
