@@ -38,6 +38,7 @@ from sklearn.svm import LinearSVC
 
 from smishlens.evaluate import metrics_at, ppv, threshold_for_fpr
 from smishlens.features import build_features
+from smishlens.pool import BOTH_CLASSES  # single source of truth for fold kinds
 from smishlens.probes import shortcut_report
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -46,7 +47,6 @@ UCI_DIR = ROOT / "data" / "processed" / "uci"
 SEED = 42
 MAX_FPR = 0.01
 PREVALENCES = (0.05, 0.10, 0.20)
-BOTH_CLASSES = ("moz", "exais", "mishra")
 RECALL_ONLY = ("imc25", "smishtank")
 
 

@@ -34,7 +34,7 @@ sys.path.insert(0, str(ROOT / "src"))
 import pandas as pd  # noqa: E402
 
 from smishlens.audit import load_review, summarise  # noqa: E402
-from smishlens.pool import build, write_pool  # noqa: E402
+from smishlens.pool import DROPPED_SOURCES, POOL_SOURCES, build, write_pool  # noqa: E402
 
 DEFAULT_REVIEW = ROOT / "data" / "processed" / "review" / "review_sample.csv"
 DEFAULT_OUT = ROOT / "data" / "processed" / "modern"
@@ -64,7 +64,33 @@ def print_rows(disagree: pd.DataFrame) -> None:
         )
 
 
-def log_entry(summary: pd.DataFrame, old_hash: str, new_hash: str, n_fix: int) -> str:
+def evidence_rows(disagree: pd.DataFrame, sources: set[str]) -> list[dict]:
+    """Text-free per-row evidence, safe to commit in data_audit.json."""
+    out = []
+    for row in disagree.itertuples():
+        if row.source not in sources:
+            continue
+        out.append(
+            {
+                "review_id": row.review_id,
+                "row_id": row.row_id,
+                "source": row.source,
+                "stored": row.y3,
+                "reviewer": row.reviewer_y3,
+                "note": getattr(row, "reviewer_note", "") or "",
+            }
+        )
+    return out
+
+
+def log_entry(
+    summary: pd.DataFrame,
+    old_hash: str,
+    new_hash: str,
+    n_fix: int,
+    accepted: list[dict],
+    dropped: list[str],
+) -> str:
     lines = [
         "",
         "---",
@@ -86,6 +112,28 @@ def log_entry(summary: pd.DataFrame, old_hash: str, new_hash: str, n_fix: int) -
             f"| {row.source} | {row.reviewed} | {row.disagree} | {row.rate:.1%} | "
             f"{row.wilson_lo:.1%}–{row.wilson_hi:.1%} |"
         )
+    for item in accepted:
+        lines += [
+            "",
+            f"**Accepted above the gate: `{item['source']}` at {item['rate']:.1%} "
+            f"(Wilson {item['wilson_lo']:.1%}–{item['wilson_hi']:.1%}).**",
+            "",
+            f"Reason: {item['reason']}",
+            "",
+            "Its stored labels were left unchanged; the sampled corrections were not applied.",
+            "Row-level evidence is in `data/processed/modern/data_audit.json` under",
+            "`label_audit.accepted`.",
+        ]
+    if dropped:
+        lines += [
+            "",
+            "Review rows from sources that are not in `POOL_SOURCES` were skipped: "
+            + ", ".join(f"`{src}`" for src in dropped)
+            + ". Their overrides were filtered, not applied.",
+        ]
+        for src in dropped:
+            if src in DROPPED_SOURCES:
+                lines.append(f"- `{src}` excluded from the pool: {DROPPED_SOURCES[src]}")
     lines += [
         "",
         "Only binary (ham vs malicious) disagreements change `y`; spam-vs-smish",
@@ -96,12 +144,31 @@ def log_entry(summary: pd.DataFrame, old_hash: str, new_hash: str, n_fix: int) -
     return "\n".join(lines)
 
 
+def parse_accept(values: list[str]) -> dict[str, str]:
+    """Parse repeated ``--accept-source NAME:REASON`` into a dict."""
+    out: dict[str, str] = {}
+    for value in values:
+        name, sep, reason = value.partition(":")
+        name, reason = name.strip(), reason.strip()
+        if not sep or not name or not reason:
+            raise SystemExit(f"--accept-source needs NAME:REASON, got {value!r}")
+        out[name] = reason
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--review", default=str(DEFAULT_REVIEW))
     ap.add_argument("--out", default=str(DEFAULT_OUT))
     ap.add_argument("--apply", action="store_true", help="rebuild the pool with corrections")
     ap.add_argument("--log", default=str(LOG), help="verification log to append to")
+    ap.add_argument(
+        "--accept-source",
+        action="append",
+        default=[],
+        metavar="NAME:REASON",
+        help="proceed above the gate for this source, recording the decision and evidence",
+    )
     args = ap.parse_args()
 
     review_path = Path(args.review)
@@ -110,6 +177,20 @@ def main() -> int:
         return 1
 
     df = load_review(review_path)
+    dropped = sorted(set(df["source"]) - set(POOL_SOURCES))
+    if dropped:
+        n_dropped = int(df["source"].isin(dropped).sum())
+        print(
+            f"ignoring {n_dropped} review row(s) from {', '.join(dropped)}: "
+            "not in POOL_SOURCES (their overrides are filtered, not applied)"
+        )
+        df = df[~df["source"].isin(dropped)].reset_index(drop=True)
+
+    accepted_reasons = parse_accept(args.accept_source)
+    unknown = sorted(set(accepted_reasons) - set(POOL_SOURCES))
+    if unknown:
+        print(f"warning: accepted sources not in the pool are ignored: {', '.join(unknown)}")
+
     summary, disagree = summarise(df)
     print_report(summary)
 
@@ -118,14 +199,36 @@ def main() -> int:
         print(f"\n{unreviewed} of {len(df)} rows have a blank reviewer_label (treated as agree)")
 
     bad = summary[summary["rate"] > GATE]
-    if not bad.empty:
+    blocking = bad[~bad["source"].isin(accepted_reasons)]
+    if not blocking.empty:
         print(
-            f"\nSTOP: {', '.join(bad['source'])} disagree on more than {GATE:.0%} "
+            f"\nSTOP: {', '.join(blocking['source'])} disagree on more than {GATE:.0%} "
             "of reviewed rows. Nothing was written."
         )
-        print_rows(disagree)
+        print_rows(disagree[disagree["source"].isin(blocking["source"])])
         print("\nDecide row by row; do not auto-fix a whole source.")
         return 2
+
+    accepted = []
+    for row in summary[summary["source"].isin(accepted_reasons)].itertuples():
+        accepted.append(
+            {
+                "source": row.source,
+                "reason": accepted_reasons[row.source],
+                "reviewed": int(row.reviewed),
+                "disagree": int(row.disagree),
+                "rate": float(row.rate),
+                "wilson_lo": float(row.wilson_lo),
+                "wilson_hi": float(row.wilson_hi),
+                "evidence": evidence_rows(disagree, {row.source}),
+            }
+        )
+    for item in accepted:
+        print(
+            f"\nACCEPTED {item['source']} at {item['rate']:.1%} "
+            f"[{item['wilson_lo']:.1%}, {item['wilson_hi']:.1%}]: {item['reason']}"
+        )
+        print(f"  {len(item['evidence'])} disagreement row(s) kept as stored, not overridden")
 
     if disagree.empty:
         print("\nno disagreements — pool unchanged")
@@ -143,7 +246,7 @@ def main() -> int:
     overrides = {
         row.row_id: row.reviewer_y3
         for row in disagree.itertuples()
-        if row.reviewer_y3 != row.y3
+        if row.reviewer_y3 != row.y3 and row.source not in accepted_reasons
     }
     result = build(label_overrides=overrides)
     result["audit"]["label_audit"] = {
@@ -152,9 +255,13 @@ def main() -> int:
         "corrections": len(overrides),
         "gate": GATE,
         "per_source": summary.to_dict(orient="records"),
+        "accepted": accepted,
+        "skipped_review_sources": dropped,
         "supersedes": old_hash,
     }
     write_pool(result, out)
+    # Text-free record of the corrections so ``make data`` reproduces this pool.
+    (out / "label_overrides.json").write_text(json.dumps(overrides, indent=2, sort_keys=True) + "\n")
 
     new_hash = result["audit"]["dataset_sha256_16"]
     print(f"\npool rebuilt: {old_hash} -> {new_hash}")
@@ -163,7 +270,7 @@ def main() -> int:
         f"{k} {v['rows']}" for k, v in result["audit"]["splits"].items()
     ))
     with Path(args.log).open("a") as fh:
-        fh.write(log_entry(summary, old_hash, new_hash, len(overrides)))
+        fh.write(log_entry(summary, old_hash, new_hash, len(overrides), accepted, dropped))
     print(f"  log     {args.log}")
     return 0
 

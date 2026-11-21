@@ -26,11 +26,15 @@ from smishlens.normalise import normalise
 from smishlens.sources import LOADERS, load_uci_from_raw
 
 # Sources that form the pool, in dedup-priority order (first wins a duplicate).
-POOL_SOURCES = ("imc25", "mishra", "exais", "moz", "smishtank")
+# ExAIS was dropped on 2026-11-21: its "spam" class is bulk/unsolicited, not
+# smishing (label audit: 30% binary disagreement, Wilson 21.9-39.6%, 27 of 30
+# being benign quotes and operator notices). See data/audit and the log.
+POOL_SOURCES = ("imc25", "mishra", "moz", "smishtank")
 # Available but deliberately outside the pool: WSPR is a 68k recall-only OOD
 # set and the Africa set is fully synthetic (roadmap §4.1: never in a test set).
 OOD_SOURCES = ("wspr", "africa")
-BOTH_CLASSES = ("moz", "exais", "mishra")
+DROPPED_SOURCES = {"exais": "class-definition mismatch: bulk/benign positives, not row noise"}
+BOTH_CLASSES = ("moz", "mishra")
 
 NEAR_DUP_THRESHOLD = 0.90
 SEED = 42
@@ -373,6 +377,9 @@ def build(
         "pool_sources": list(POOL_SOURCES),
         "ood_only_sources": list(OOD_SOURCES),
         "excluded_sources": {
+            "exais": "dropped 2026-11-21 after the label audit: its 'spam' class is bulk/unsolicited "
+            "(benign quotes, operator notices), 30% binary disagreement (Wilson 21.9-39.6%); "
+            "a class-definition mismatch, not row noise",
             "africa": "fully synthetic (is_synthetic=1 on every row); roadmap §4.1 forbids "
             "synthetic rows in a headline test set",
             "wspr": "68,029 recall-only phishing messages; kept as an OOD source so it "

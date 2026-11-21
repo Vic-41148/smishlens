@@ -301,3 +301,55 @@ bs 16 and max_len 128, leaving about 2.4 GiB of headroom on a 6 GB card, and it
 is 2.2x slower than small. Recommendation: mmBERT-base for the headline model
 and the final fit, mmBERT-small for the remaining LOSO folds (roadmap §7.10
 compute plan). Drop to bs 8 with accum 2 only if longer `max_len` runs OOM.
+
+---
+
+## 2026-11-21 — label audit applied; pool hash superseded
+
+`data/apply_audit.py` folded the reviewed sample back into the modern pool.
+8 label correction(s) were applied before dedup, so the pool was rebuilt,
+and the splits and LOSO folds were re-frozen at the same seed (42).
+
+- previous dataset hash: `4015672722968db6` — **superseded**
+- new dataset hash: `4b202c8f6ea707da`
+
+| source | reviewed | disagree | rate | Wilson 95% |
+|---|---|---|---|---|
+| imc25 | 100 | 3 | 3.0% | 1.0%–8.5% |
+| mishra | 100 | 1 | 1.0% | 0.2%–5.4% |
+| moz | 100 | 6 | 6.0% | 2.8%–12.5% |
+| smishtank | 100 | 0 | 0.0% | 0.0%–3.7% |
+
+**Accepted above the gate: `moz` at 6.0% (Wilson 2.8%–12.5%).**
+
+Reason: disagreement is one template that also appears in 232 of 2,009 ham rows, so it is label ambiguity, not a fixable rule
+
+Its stored labels were left unchanged; the sampled corrections were not applied.
+Row-level evidence is in `data/processed/modern/data_audit.json` under
+`label_audit.accepted`.
+
+Review rows from sources that are not in `POOL_SOURCES` were skipped: `exais`. Their overrides were filtered, not applied.
+- `exais` excluded from the pool: class-definition mismatch: bulk/benign positives, not row noise (30% binary disagreement in the sample, Wilson 21.9%–39.6%; 27 of 30 were quotes and operator notices).
+
+Only binary (ham vs malicious) disagreements change `y`; spam-vs-smish
+disagreements change `y3` only. Any result computed on the previous hash
+is stale and must be re-run.
+
+## 2026-11-21 — gold holdout schema check
+
+`gold_holdout.csv` was checked for schema only; its messages were not read.
+133 rows, columns `id,text,label,language,scam_type,synthetic,notes`, no duplicate
+ids, no duplicate texts, no blank labels.
+
+- `label` is already canonical (`ham` 59, `smish` 60, `spam` 14), so the loader
+  maps it straight to `y3` and derives `y = 0 if ham else 1`; no relabelling.
+- `synthetic` is `1` on all 133 rows: the file is **fully synthetic** and was
+  written by Claude on the user's behalf. Results on it are a synthetic stress
+  test, not field evidence.
+- Two new categories appear here that the pool does not contain: language
+  `hinglish` (29 rows; the rest are `en`) and `scam_type` values `personal`,
+  `promo`, `banking`, `delivery_update`, `bank_alert`, `utility`, `parcel`,
+  `otp`, `job`, `appointment`.
+
+The holdout is never used for tuning, thresholds or model selection, and no
+misclassified gold message may be printed before E16.

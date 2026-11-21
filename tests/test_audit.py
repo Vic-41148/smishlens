@@ -185,3 +185,133 @@ def test_apply_audit_applies_binary_and_subtype_corrections(tmp_path, monkeypatc
     assert overrides == {"r0": "smish", "r1": "spam"}
     text = log.read_text()
     assert "oldhash" in text and "newhash" in text and "superseded" in text
+
+
+def _multi_review(path, spec):
+    """spec: {source: (n, flips, subtype_flips)} with unique review ids."""
+    rows = []
+    for source, (n, flips, subtype_flips) in spec.items():
+        for i in range(n):
+            stored = "smish" if i % 2 else "ham"
+            label = ""
+            if i in flips:
+                label = "ham" if stored != "ham" else "smish"
+            elif i in subtype_flips:
+                label = "spam" if stored == "smish" else ""
+            rows.append(
+                {
+                    "review_id": f"{source}-R{i}",
+                    "row_id": f"{source}-r{i}",
+                    "source": source,
+                    "text": f"{source} message {i}",
+                    "y": int(stored != "ham"),
+                    "y3": stored,
+                    "reviewer_label": label,
+                }
+            )
+    pd.DataFrame(rows).to_csv(path, index=False)
+    return path
+
+
+def _run(monkeypatch, module, *argv):
+    import sys
+
+    monkeypatch.setattr(sys, "argv", ["apply_audit.py", *argv])
+    return module.main()
+
+
+def test_apply_audit_accept_source_passes(tmp_path, monkeypatch):
+    review = _review_file(tmp_path / "review.csv", flips=set(range(10)))
+    module = _apply_audit_module()
+    code = _run(
+        monkeypatch, module,
+        "--review", str(review),
+        "--out", str(tmp_path / "out"),
+        "--log", str(tmp_path / "log.md"),
+        "--accept-source", "moz:one template, label ambiguity",
+    )
+    assert code == 0
+
+
+def test_apply_audit_unnamed_source_still_blocks(tmp_path, monkeypatch):
+    review = _multi_review(
+        tmp_path / "review.csv",
+        {"moz": (100, set(range(10)), ()), "mishra": (100, set(range(10)), ())},
+    )
+    module = _apply_audit_module()
+    code = _run(
+        monkeypatch, module,
+        "--review", str(review),
+        "--out", str(tmp_path / "out"),
+        "--log", str(tmp_path / "log.md"),
+        "--accept-source", "moz:accepted",
+    )
+    assert code == 2
+
+
+def test_apply_audit_skips_dropped_source(tmp_path, monkeypatch, capsys):
+    review = _multi_review(
+        tmp_path / "review.csv",
+        {"exais": (100, set(range(30)), ()), "moz": (100, set(), ())},
+    )
+    module = _apply_audit_module()
+    code = _run(
+        monkeypatch, module,
+        "--review", str(review),
+        "--out", str(tmp_path / "out"),
+        "--log", str(tmp_path / "log.md"),
+    )
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "ignoring 100 review row(s) from exais" in out
+
+
+def test_apply_audit_accepted_labels_kept_and_dropped_overrides_filtered(tmp_path, monkeypatch):
+    import json
+
+    review = _multi_review(
+        tmp_path / "review.csv",
+        {
+            "exais": (10, {0, 1}, ()),
+            "moz": (100, {0, 1}, ()),
+            "mishra": (100, {0}, ()),
+        },
+    )
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "data_audit.json").write_text('{"dataset_sha256_16": "oldhash"}')
+    module = _apply_audit_module()
+    captured = {}
+
+    def fake_build(label_overrides=None):
+        captured["overrides"] = label_overrides
+        return {
+            "audit": {
+                "dataset_sha256_16": "newhash",
+                "pool_rows": 10,
+                "splits": {"train": {"rows": 6}, "cal": {"rows": 1}, "test": {"rows": 3}},
+            }
+        }
+
+    monkeypatch.setattr(module, "build", fake_build)
+    monkeypatch.setattr(module, "write_pool", lambda result, path: None)
+    code = _run(
+        monkeypatch, module,
+        "--review", str(review),
+        "--out", str(out),
+        "--log", str(tmp_path / "log.md"),
+        "--accept-source", "moz:label ambiguity",
+        "--apply",
+    )
+    assert code == 0
+    overrides = captured["overrides"]
+    assert overrides == {"mishra-r0": "smish"}
+    assert not any(k.startswith(("exais-", "moz-")) for k in overrides)
+    written = json.loads((out / "label_overrides.json").read_text())
+    assert written == {"mishra-r0": "smish"}
+
+
+def test_parse_accept_rejects_bad_format():
+    module = _apply_audit_module()
+    with pytest.raises(SystemExit):
+        module.parse_accept(["moz"])

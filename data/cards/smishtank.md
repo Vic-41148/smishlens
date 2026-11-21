@@ -8,7 +8,7 @@
 | Rows (raw) | 1,062 |
 | Labels | smishing only (`y3 = smish`) |
 | Languages | English |
-| Rows kept in the pool | 834 |
+| Rows kept in the pool | 835 (the 2026-11-21 re-freeze released one row that ExAIS had previously deduplicated) |
 | Role | Extra positives; recall-only LOSO fold |
 
 ## What it is

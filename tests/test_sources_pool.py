@@ -92,20 +92,20 @@ def test_dedup_drops_exact_and_normalised_copies():
     frame = pd.concat(
         [
             _frame([("Win  CASH now", "spam"), ("win cash now", "spam")], "moz"),
-            _frame([("Ｗin cash now", "spam")], "exais"),  # fullwidth, normalises equal
+            _frame([("Ｗin cash now", "spam")], "mishra"),  # fullwidth, normalises equal
         ],
         ignore_index=True,
     )
     out, log = dedup_within(frame)
     assert log["rows_in"] == 3
     assert len(out) == 1
-    # Priority order is (imc25, mishra, exais, moz, smishtank): exais outranks moz.
-    assert out["source"].iloc[0] == "exais"
+    # Priority order is (imc25, mishra, moz, smishtank): mishra outranks moz.
+    assert out["source"].iloc[0] == "mishra"
 
 
 def test_dedup_drops_label_conflicts_entirely():
     frame = pd.concat(
-        [_frame([("same text", "ham")], "moz"), _frame([("same text", "spam")], "exais")],
+        [_frame([("same text", "ham")], "moz"), _frame([("same text", "spam")], "mishra")],
         ignore_index=True,
     )
     out, log = dedup_within(frame)
@@ -232,7 +232,7 @@ def test_apply_label_overrides_rejects_bad_label():
 def test_override_resolves_label_conflict_before_dedup():
     frame = pd.concat(
         [
-            _frame([("claim your prize now", "spam")], "exais"),
+            _frame([("claim your prize now", "spam")], "mishra"),
             _frame([("claim your prize now", "ham")], "moz"),
         ],
         ignore_index=True,
@@ -245,7 +245,7 @@ def test_override_resolves_label_conflict_before_dedup():
     fixed = apply_label_overrides(frame, {rid: "spam"})
     out, log = dedup_within(fixed)
     assert len(out) == 1
-    assert out["source"].iloc[0] == "exais"  # dedup priority still decides
+    assert out["source"].iloc[0] == "mishra"  # dedup priority still decides
     assert log["dropped_label_conflict"] == 0
 
 
@@ -259,13 +259,13 @@ def test_build_applies_label_overrides(monkeypatch):
         (f"congratulations you have won the {t} prize call now", "smish") for t in topics
     ]
     rows += [(f"see you at the {t} station later", "ham") for t in topics]
-    frame = _frame(rows, "exais")
+    frame = _frame(rows, "moz")
 
     monkeypatch.setattr(pool_mod, "load_pool", lambda raw=None: frame.copy())
     monkeypatch.setattr(pool_mod, "load_uci_from_raw", lambda raw=None: frame.iloc[0:0])
     monkeypatch.setattr(pool_mod, "ood_stats", lambda raw=None: {})
 
-    rid = row_id("exais", "see you at the topicaa station later")
+    rid = row_id("moz", "see you at the topicaa station later")
     result = pool_mod.build(label_overrides={rid: "smish"})
 
     assert result["audit"]["label_overrides"] == {"n": 1, "applied_before_dedup": True}

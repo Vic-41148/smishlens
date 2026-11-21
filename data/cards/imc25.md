@@ -6,10 +6,10 @@
 | Accessed | 2026-11-21 |
 | Licence | CC BY 4.0 (repo README) |
 | Rows (raw) | 33,869 |
-| Labels | smishing only (`y = 1`, `y3 = smish`); no ham |
+| Labels | smishing only in the raw source (`y = 1`, `y3 = smish`); the 2026-11-21 label audit corrected 3 transactional messages to ham |
 | Languages | English 22,078, Spanish 4,639, Dutch 1,945, French 1,163, German 810, + others |
-| Rows kept in the pool | 24,462 |
-| Role | Main modern positives; recall-only LOSO fold |
+| Rows kept in the pool | 24,462 (24,459 positive / 3 ham) |
+| Role | Main modern positives; recall-only LOSO fold (the 3 ham rows are scored but excluded from recall) |
 
 ## What it is
 

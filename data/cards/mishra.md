@@ -8,7 +8,7 @@
 | Rows (raw) | 5,971 |
 | Labels | 4,844 ham / 489 spam / 638 smishing (3-class) |
 | Languages | English (not declared per row) |
-| Rows kept in the pool | 657 (392 ham / 265 positive) |
+| Rows kept in the pool | 656 (392 ham / 264 positive); one positive became a near-duplicate of UCI after ExAIS left the pool (the TF-IDF vocabulary shifted: vs-UCI near drops 189 → 190) |
 | Role | Both-class LOSO source |
 
 ## What it is

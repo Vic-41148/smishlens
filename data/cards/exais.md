@@ -8,8 +8,8 @@
 | Rows (raw) | 5,240 |
 | Labels | 2,890 ham / 2,350 spam |
 | Languages | English (Nigerian SMS, 2014–2015) |
-| Rows kept in the pool | 3,648 (2,292 ham / 1,356 positive) |
-| Role | Both-class LOSO source; the pool's second-largest ham contributor |
+| Rows kept in the pool | **0 — excluded 2026-11-21** (was 3,648: 2,292 ham / 1,356 positive) |
+| Role | **Not in the pool.** Dropped after the label audit: "spam" here means bulk/unsolicited, not smishing (30% binary disagreement, Wilson 21.9%–39.6%; 27 of 30 were quotes and operator notices) |
 
 ## What it is
 

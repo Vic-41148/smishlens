@@ -1,9 +1,12 @@
 {
   "seed": 42,
+  "label_overrides": {
+    "n": 8,
+    "applied_before_dedup": true
+  },
   "pool_sources": [
     "imc25",
     "mishra",
-    "exais",
     "moz",
     "smishtank"
   ],
@@ -12,17 +15,18 @@
     "africa"
   ],
   "excluded_sources": {
+    "exais": "dropped 2026-11-21 after the label audit: its 'spam' class is bulk/unsolicited (benign quotes, operator notices), 30% binary disagreement (Wilson 21.9-39.6%); a class-definition mismatch, not row noise",
     "africa": "fully synthetic (is_synthetic=1 on every row); roadmap \u00a74.1 forbids synthetic rows in a headline test set",
     "wspr": "68,029 recall-only phishing messages; kept as an OOD source so it cannot swamp the pool's class balance"
   },
   "dedup": {
     "within": {
-      "rows_in": 48703,
-      "label_conflict_texts": 46,
-      "dropped_label_conflict": 198,
-      "dropped_exact_duplicate": 10467,
-      "dropped_normalised": 983,
-      "rows_out": 37055,
+      "rows_in": 43463,
+      "label_conflict_texts": 4,
+      "dropped_label_conflict": 8,
+      "dropped_exact_duplicate": 9259,
+      "dropped_normalised": 793,
+      "rows_out": 33403,
       "per_source": {
         "imc25": {
           "rows_in": 33869,
@@ -37,13 +41,6 @@
           "dropped_exact_duplicate": 140,
           "dropped_normalised": 107,
           "rows_out": 5724
-        },
-        "exais": {
-          "rows_in": 5240,
-          "dropped_label_conflict": 190,
-          "dropped_exact_duplicate": 1208,
-          "dropped_normalised": 190,
-          "rows_out": 3652
         },
         "moz": {
           "rows_in": 2561,
@@ -62,9 +59,9 @@
       }
     },
     "vs_uci": {
-      "exact": 4879,
-      "near": 189,
-      "rows_out": 31987,
+      "exact": 4876,
+      "near": 190,
+      "rows_out": 28337,
       "per_source": {
         "imc25": {
           "rows_in": 24462,
@@ -74,12 +71,7 @@
         "mishra": {
           "rows_in": 5724,
           "exact": 4876,
-          "near": 189
-        },
-        "exais": {
-          "rows_in": 3652,
-          "exact": 3,
-          "near": 0
+          "near": 190
         },
         "moz": {
           "rows_in": 2330,
@@ -99,12 +91,8 @@
         "dropped": 0
       },
       "mishra": {
-        "rows": 659,
+        "rows": 658,
         "dropped": 2
-      },
-      "exais": {
-        "rows": 3649,
-        "dropped": 1
       },
       "moz": {
         "rows": 2330,
@@ -112,45 +100,41 @@
       },
       "smishtank": {
         "rows": 887,
-        "dropped": 53
+        "dropped": 52
       }
     }
   },
   "per_source_stages": {
     "raw": {
-      "exais": 5240,
       "imc25": 33869,
       "mishra": 5971,
       "moz": 2561,
       "smishtank": 1062
     },
     "after_within_dedup": {
-      "exais": 3652,
       "imc25": 24462,
       "mishra": 5724,
       "moz": 2330,
       "smishtank": 887
     },
     "after_uci_overlap": {
-      "exais": 3649,
       "imc25": 24462,
-      "mishra": 659,
+      "mishra": 658,
       "moz": 2330,
       "smishtank": 887
     },
     "final": {
-      "exais": 3648,
       "imc25": 24462,
-      "mishra": 657,
+      "mishra": 656,
       "moz": 2330,
-      "smishtank": 834
+      "smishtank": 835
     }
   },
   "per_source": {
     "imc25": {
       "rows": 24462,
-      "ham": 0,
-      "positives": 24462,
+      "ham": 3,
+      "positives": 24459,
       "languages": {
         "english": 15391,
         "spanish": 3245,
@@ -161,20 +145,11 @@
       "near_dup_dropped_vs_earlier_sources": 0
     },
     "mishra": {
-      "rows": 657,
+      "rows": 656,
       "ham": 392,
-      "positives": 265,
+      "positives": 264,
       "languages": {},
       "near_dup_dropped_vs_earlier_sources": 2
-    },
-    "exais": {
-      "rows": 3648,
-      "ham": 2292,
-      "positives": 1356,
-      "languages": {
-        "en": 3648
-      },
-      "near_dup_dropped_vs_earlier_sources": 1
     },
     "moz": {
       "rows": 2330,
@@ -186,11 +161,11 @@
       "near_dup_dropped_vs_earlier_sources": 0
     },
     "smishtank": {
-      "rows": 834,
+      "rows": 835,
       "ham": 0,
-      "positives": 834,
+      "positives": 835,
       "languages": {},
-      "near_dup_dropped_vs_earlier_sources": 53
+      "near_dup_dropped_vs_earlier_sources": 52
     }
   },
   "ood_sources": {
@@ -219,52 +194,162 @@
   },
   "splits": {
     "train": {
-      "rows": 20435,
-      "positives": 17575,
-      "ham": 2860,
-      "prevalence": 0.860044,
+      "rows": 18102,
+      "positives": 16706,
+      "ham": 1396,
+      "prevalence": 0.922881,
       "per_source": {
-        "imc25": 15655,
-        "exais": 2335,
+        "imc25": 15657,
         "moz": 1491,
         "smishtank": 534,
         "mishra": 420
       }
     },
     "cal": {
-      "rows": 5108,
-      "positives": 4393,
-      "ham": 715,
-      "prevalence": 0.860023,
+      "rows": 4524,
+      "positives": 4176,
+      "ham": 348,
+      "prevalence": 0.923077,
       "per_source": {
         "imc25": 3913,
-        "exais": 584,
         "moz": 372,
-        "smishtank": 133,
-        "mishra": 106
+        "smishtank": 134,
+        "mishra": 105
       }
     },
     "test": {
-      "rows": 6388,
-      "positives": 5495,
-      "ham": 893,
-      "prevalence": 0.860207,
+      "rows": 5657,
+      "positives": 5222,
+      "ham": 435,
+      "prevalence": 0.923104,
       "per_source": {
-        "imc25": 4894,
-        "exais": 729,
+        "imc25": 4892,
         "moz": 467,
         "smishtank": 167,
         "mishra": 131
       }
     }
   },
-  "pool_rows": 31931,
-  "pool_prevalence": 0.860073,
+  "pool_rows": 28283,
+  "pool_prevalence": 0.922957,
   "near_dup_threshold": 0.9,
-  "dataset_sha256_16": "4015672722968db6",
+  "dataset_sha256_16": "4b202c8f6ea707da",
   "notes": [
     "Splits are stratified by (source, y) with seed 42 and are frozen; do not redraw.",
     "Prevalence is far above field prevalence because the pool is positive-heavy by construction (IMC'25 is positives-only). Report PPV at realistic prevalence, never raw precision.",
     "The split is committed only as a text-free manifest; processed text stays git-ignored for the unclear-licence sources."
-  ]
+  ],
+  "label_audit": {
+    "review_file": "review_sample.csv",
+    "reviewed": 400,
+    "corrections": 8,
+    "gate": 0.05,
+    "per_source": [
+      {
+        "source": "imc25",
+        "reviewed": 100,
+        "corrected": 3,
+        "disagree": 3,
+        "rate": 0.03,
+        "wilson_lo": 0.010254338223414816,
+        "wilson_hi": 0.08452078080402699,
+        "subtype_only": 0
+      },
+      {
+        "source": "mishra",
+        "reviewed": 100,
+        "corrected": 1,
+        "disagree": 1,
+        "rate": 0.01,
+        "wilson_lo": 0.0017673865655472645,
+        "wilson_hi": 0.0544875247609346,
+        "subtype_only": 0
+      },
+      {
+        "source": "moz",
+        "reviewed": 100,
+        "corrected": 6,
+        "disagree": 6,
+        "rate": 0.06,
+        "wilson_lo": 0.02778574526665662,
+        "wilson_hi": 0.12476968531222507,
+        "subtype_only": 0
+      },
+      {
+        "source": "smishtank",
+        "reviewed": 100,
+        "corrected": 4,
+        "disagree": 0,
+        "rate": 0.0,
+        "wilson_lo": 0.0,
+        "wilson_hi": 0.03699480747600191,
+        "subtype_only": 4
+      }
+    ],
+    "accepted": [
+      {
+        "source": "moz",
+        "reason": "disagreement is one template that also appears in 232 of 2,009 ham rows, so it is label ambiguity, not a fixable rule",
+        "reviewed": 100,
+        "disagree": 6,
+        "rate": 0.06,
+        "wilson_lo": 0.02778574526665662,
+        "wilson_hi": 0.12476968531222507,
+        "evidence": [
+          {
+            "review_id": "R301",
+            "row_id": "cebdc14c842fa0c9",
+            "source": "moz",
+            "stored": "ham",
+            "reviewer": "smish",
+            "note": "M-Pesa 'send money to this number / name' pattern identical to moz smish rows"
+          },
+          {
+            "review_id": "R309",
+            "row_id": "e47d77b9e1b158d7",
+            "source": "moz",
+            "stored": "ham",
+            "reviewer": "smish",
+            "note": "M-Pesa 'send money to this number / name' pattern identical to moz smish rows"
+          },
+          {
+            "review_id": "R310",
+            "row_id": "291f4ce1c1f56d16",
+            "source": "moz",
+            "stored": "ham",
+            "reviewer": "smish",
+            "note": "M-Pesa 'send money to this number / name' pattern identical to moz smish rows"
+          },
+          {
+            "review_id": "R325",
+            "row_id": "d44f286cfd421935",
+            "source": "moz",
+            "stored": "ham",
+            "reviewer": "smish",
+            "note": "M-Pesa 'send money to this number / name' pattern identical to moz smish rows"
+          },
+          {
+            "review_id": "R328",
+            "row_id": "28e37999c9b2b630",
+            "source": "moz",
+            "stored": "ham",
+            "reviewer": "smish",
+            "note": "M-Pesa 'send money to this number / name' pattern identical to moz smish rows"
+          },
+          {
+            "review_id": "R335",
+            "row_id": "8bbf9838b66996e4",
+            "source": "moz",
+            "stored": "ham",
+            "reviewer": "smish",
+            "note": "M-Pesa 'send money to this number / name' pattern identical to moz smish rows"
+          }
+        ]
+      }
+    ],
+    "skipped_review_sources": [
+      "exais"
+    ],
+    "supersedes": "4015672722968db6"
+  }
 }

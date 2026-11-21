@@ -38,10 +38,12 @@ def main() -> int:
     args = ap.parse_args()
 
     overrides = None
-    if args.overrides:
-        overrides = json.loads(Path(args.overrides).read_text())
-
     out = Path(args.out)
+    override_path = Path(args.overrides) if args.overrides else out / "label_overrides.json"
+    if override_path.exists():
+        overrides = json.loads(override_path.read_text())
+        print(f"  overrides         {override_path}")
+
     result = build(raw=Path(args.raw), label_overrides=overrides)
     write_pool(result, out)
 

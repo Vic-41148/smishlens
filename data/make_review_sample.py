@@ -15,6 +15,7 @@ Usage: python data/make_review_sample.py [--per-source 100] [--out PATH]
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -26,6 +27,7 @@ import pandas as pd  # noqa: E402
 from smishlens.pool import POOL_SOURCES, build, row_id  # noqa: E402
 
 DEFAULT_OUT = ROOT / "data" / "processed" / "review" / "review_sample.csv"
+POOL_DIR = ROOT / "data" / "processed" / "modern"
 
 
 def sample(frame: pd.DataFrame, per_source: int, seed: int) -> pd.DataFrame:
@@ -73,7 +75,10 @@ def main() -> int:
     ap.add_argument("--out", default=str(DEFAULT_OUT))
     args = ap.parse_args()
 
-    result = build()
+    # Use the committed corrections so a new sample is drawn from the frozen pool.
+    overrides_path = POOL_DIR / "label_overrides.json"
+    overrides = json.loads(overrides_path.read_text()) if overrides_path.exists() else None
+    result = build(label_overrides=overrides)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     sample(result["frame"], args.per_source, args.seed).to_csv(out, index=False)
