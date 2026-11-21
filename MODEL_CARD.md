@@ -51,7 +51,8 @@ git-ignored.
 MOZ, ExAIS and Smishtank have **unverified or missing data licences**.
 Their text is never redistributed here. A model trained on them is a derived
 artefact; redistributing the weights is a separate legal question and is
-**not cleared** by this card.
+**not cleared** by this card. The deployment split keeps the artifact in a
+private repository; see `docs/DEPLOYMENT.md`.
 
 ## Evaluation
 

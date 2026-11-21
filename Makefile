@@ -7,7 +7,7 @@ PY     := .venv/bin/python
 PIP    := .venv/bin/pip
 export PYTHONPATH := src
 
-.PHONY: setup test lint train app serve eda data summary docs diag e17 clean
+.PHONY: setup test lint train app serve eda data summary docs diag e17 public-check clean
 
 setup:
 	python3 -m venv .venv
@@ -48,6 +48,7 @@ summary: docs
 docs:
 	$(PY) -m smishlens.results_summary
 	$(PY) -m smishlens.docs_gen
+	$(PY) -m smishlens.deploy_doc
 
 # Post-hoc diagnostics (svm only; exploratory, no arm adopted).
 diag:
@@ -57,6 +58,10 @@ diag:
 # E17 latency/footprint; writes reports/results/e17_latency.json.
 e17:
 	$(PY) -m smishlens.e17_latency
+
+# Assert the tracked tree matches the public/private deployment split.
+public-check:
+	$(PY) -m smishlens.public_check
 
 clean:
 	rm -rf .pytest_cache .ruff_cache

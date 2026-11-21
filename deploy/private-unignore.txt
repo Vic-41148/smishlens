@@ -1,0 +1,10 @@
+# Append this block to .gitignore in the PRIVATE repository only.
+# It re-includes exactly the three serving files; everything else under
+# artifacts/ stays ignored. Do not copy this into the public repository.
+!artifacts/
+artifacts/*
+!artifacts/serve/
+artifacts/serve/*
+!artifacts/serve/svm_bundle.joblib
+!artifacts/serve/metadata.json
+!artifacts/serve/MANIFEST.sha256
