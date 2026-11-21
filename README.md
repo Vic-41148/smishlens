@@ -1,147 +1,221 @@
 # smishlens
 
-An SMS spam/smishing detector built to answer one question honestly: **how much of a
-"98% accurate" SMS filter survives when the messages are not from 2011?** Tier 1 is the
-classical pipeline on the UCI anchor; Tier 2 moves to a modern, multi-source pool.
+**How much of an SMS smishing detector survives when the messages are not
+from 2011?** This repository builds a modern, multi-source SMS spam/smishing
+pool, measures ranking and threshold portability across sources, and ships a
+small Streamlit triage demo on top of a frozen linear model.
 
-## Three actions, not two
+The short answer: **the ranking transfers better than the threshold.** A
+model that looks excellent in-pool degrades sharply when a whole source is
+held out, and the frozen 1% FPR threshold does not port. The demo is
+deliberately a triage aid, not a verdict.
 
-A binary "spam / not spam" gate is the wrong product. The policy layer returns one of three
-actions, and it is deliberately FPR-first: a filtered security advisory is worse than a
-delivered advertisement.
+---
 
-| Action | Meaning | When |
-|---|---|---|
-| `deliver` | show it | the conformal set includes 0, or the signals disagree |
-| `quarantine` | hold for review, do not notify | the conformal set is `{0,1}` (ambiguous) or `{}` (unlike either class) |
-| `junk` | block / hide | the conformal set is `{1}` **and** `p_spam >= tau` |
+## 1. Problem
 
-On the UCI test split this gives **874 deliver / 129 junk / 30 quarantine** (abstain rate
-0.0290) at `tau = 0.1514`.
+Classical SMS filters report accuracy above 98% on the UCI SMS Spam
+Collection, a 2011 UK/Singapore corpus with no parcel scams, no
+bank-impersonation lures, no Hinglish, and no modern shortener domains.
+Three questions follow:
 
-## Results — UCI test split, touched once
+1. Does a model trained on a modern multi-source pool rank new messages well?
+2. Does its operating point (a threshold chosen for 1% FPR) transfer to a
+   source it has never seen?
+3. Can a simple, frozen display rule turn a score into a usable triage hint
+   without pretending to be a verdict?
 
-From `reports/results/test_metrics.json`. 1,033 rows (128 spam / 905 ham, prevalence 0.1239).
-Bootstrap 95% intervals, 3 dp:
+## 2. Data
 
-| Metric | Value | 95% CI |
-|---|---|---|
-| Recall (TPR) | 0.977 | 0.946 – 1.000 |
-| Precision | 0.969 | 0.935 – 0.992 |
-| F1 | 0.973 | 0.951 – 0.989 |
-| PR-AUC | 0.994 | 0.986 – 0.999 |
-| ROC-AUC | 0.999 | — |
-| FPR at `tau` | 0.0044 | — |
+The modern pool is frozen by `data/build_modern_pool.py`: exact and
+near-duplicate removal, then a stratified 64/16/20 train/calibration/test
+split keyed by `(source, label)`. Processed splits are committed; raw
+message text is git-ignored.
 
-**Read the intervals, not the point estimates.** 128 spam rows is a small sample; the recall
-interval reaches 1.000 and the lower bounds are what a reviewer should plan against.
+| Source | Pool rows | ham / positive | Licence status | Role |
+|---|---:|---|---|---|
+| IMC'25 smishing | 24,462 | 3 / 24,459 | CC BY 4.0 | train / test positives |
+| Mishra & Soni | 599 | 367 / 232 | CC BY 4.0 | LOSO fold |
+| MOZ-Smishing | 2,330 | 1,784 / 546 | **unverified** (card carries a *model* licence) | LOSO fold |
+| ExAIS SMS Spam | 2,330 | 2,330 / 0 | **unverified** (no licence file) | FPR-only LOSO fold |
+| Smishtank Dataset I | 726 | 0 / 726 | **unverified** (cite only) | recall-only |
+| UCI SMS Spam | — | — | CC BY 4.0 | Tier 1 anchor |
 
-Champion model: `word_char_meta_linearsvc_sigmoid` (v1.0.0), dataset hash `f97f67a049e40da3`.
+Two properties dominate every aggregate below:
 
-## How it works
+- **Positive-heavy.** Pool test prevalence is 0.8529 on 6,090 rows, so accuracy is not reported.
+- **One source dominates.** IMC'25 supplies 94.20% of test spam. Pool-wide evasion numbers are mostly IMC'25 numbers.
 
-1. **Normalise** — NFKC, strip format/zero-width characters, fold confusables, defang URLs and
-   phone numbers so a link cannot be memorised as a token.
-2. **Features** — word 1–2 gram TF-IDF + character 3–5 gram TF-IDF + a small meta block (length,
-   digit ratio, caps ratio, URL/shortcode/currency flags). The train-split ablation
-   (`reports/results/tier1_e2.csv`) puts word+char at PR-AUC 0.9848 ± 0.0044, ahead of either
-   alone.
-3. **Classify** — LinearSVC, sigmoid-calibrated (temperature fitted on train), so the score is a
-   usable probability. LinearSVC was best on the train-split comparison at PR-AUC 0.9845 ± 0.0064
-   (`reports/results/tier1_e3.csv`), ahead of LR, CNB, MNB and RF.
-4. **Threshold** — `tau` is the max-recall point subject to FPR ≤ 0.01, fitted on **out-of-fold
-   train scores**, never on test.
-5. **Conformal** — Mondrian conformal per class (`alpha = 0.05`) fitted on the **calibration**
-   split. This produces the `{0}`, `{1}`, `{0,1}`, `{}` sets that drive the three actions.
-6. **Policy** — `src/smishlens/policy.py` turns (probability, threshold, set) into an action.
+Sources with unverified licences are used locally and are never
+redistributed; their text does not enter git. See `data/README.md` and
+`data/cards/`.
 
-## Quickstart
+## 3. Method
+
+1. **Normalise** — NFKC, strip format/zero-width characters, fold mixed-script
+   confusables, defang URLs and phone numbers.
+2. **Features** — word 1–2 gram TF-IDF + character 3–5 gram TF-IDF + a small
+   meta block (length, digit ratio, caps ratio, URL/shortcode/currency flags).
+3. **Classify** — LinearSVC (`C=0.5`, class-balanced), trained on the pool
+   **train** split only.
+4. **Threshold** — max recall subject to out-of-fold FPR ≤ 1%, computed on
+   train OOF scores, never on test.
+5. **Calibrate** — Platt (sigmoid) fitted on `cal_a`.
+6. **Conformal** — class-conditional (Mondrian) `q_hat` on the same `cal_a`,
+   `alpha = 0.05`.
+7. **Display** — three bands derived only from the conformal set:
+   `{1}` → "likely scam", `{0}` → "looks ordinary", `{0,1}` or `{}` →
+   "needs review". No new thresholds in the app.
+
+No test row and no gold row is used to fit, calibrate, select or tune
+anything. The synthetic gold sets are used once, for evaluation.
+
+## 4. Results
+
+All numbers are generated from `reports/results/*.json` by `make summary`
+→ `docs/RESULTS_SUMMARY.md`. The headline tables:
+
+### In-pool test (E3, frozen threshold)
+
+| scope | recall | FPR | PR-AUC |
+|---|---:|---:|---:|
+| `macro` | 0.8098 | 0.0097 | 0.9773 |
+| `imc25` | 0.9753 | — | — |
+| `smishtank` | 0.9034 | — | — |
+| `exais` | — | 0.0322 | — |
+
+`macro` is the unweighted mean over `mishra` + `moz`; `exais` is FPR-only,
+`imc25` and `smishtank` are recall-only.
+
+### Leave-one-source-out (E4, frozen threshold)
+
+| held out | recall | FPR | PR-AUC |
+|---|---:|---:|---:|
+| `mishra` | 0.4871 | 0.0245 | 0.8616 |
+| `moz` | 0.3187 | 0.3111 | 0.2329 |
+| `exais` | — | 0.3811 | — |
+| `imc25` | 0.1550 | — | — |
+| `smishtank` | 0.7259 | — | — |
+| `macro` | 0.4029 | 0.1678 | 0.5473 |
+
+The gap between the two tables is the whole story: **ranking** mostly holds (`mishra` PR-AUC 0.8616), **threshold** portability does not (`moz` FPR 0.3111).
+
+### Synthetic gold v2 (Claude-authored, 23 spam / 35 ham)
+
+| model | recall | FPR | PR-AUC |
+|---|---:|---:|---:|
+| svm | 0.6957 | 0.5429 | 0.6850 |
+| mmBERT-base | 1.0000 | 0.4857 | 0.8483 |
+| dummy (prior) | 0.0000 | 0.0000 | 0.3966 |
+
+The intervals are wide (35 ham rows) and the absolute FPR is not a field estimate. Gold is synthetic; it is never used for selection.
+
+### Evasion (E7/E8, pool test, frozen models)
+
+Normaliser OFF → ON, svm: clean recall 0.9586 → 0.9696, FPR 0.0134 → 0.0201. Leetspeak is the costliest attack (0.7792 → 0.8392).
+
+| model | source | n spam | clean off | clean on | leet off | leet on |
+|---|---|---:|---:|---:|---:|---:|
+| svm | imc25 | 4,893 | 0.9716 | 0.9753 | 0.8029 | 0.8532 |
+| svm | mishra | 47 | 0.5319 | 0.7021 | 0.3901 | 0.6099 |
+| svm | moz | 109 | 0.8440 | 0.9174 | 0.1621 | 0.3456 |
+| svm | smishtank | 145 | 0.7448 | 0.9034 | 0.5586 | 0.7609 |
+| mmBERT-base | imc25 | 4,893 | 0.9826 | 0.9826 | 0.9662 | 0.9671 |
+| mmBERT-base | mishra | 47 | 0.8085 | 0.7872 | 0.7234 | 0.7234 |
+| mmBERT-base | moz | 109 | 0.9908 | 0.9908 | 0.2049 | 0.2049 |
+| mmBERT-base | smishtank | 145 | 0.9655 | 0.9655 | 0.9517 | 0.9517 |
+
+### Fix attempts (F1–F5)
+
+A pre-registered rule required macro LOSO FPR to fall by at least 0.05
+while macro PR-AUC fell by at most 0.02. **No arm is a fix.**
+
+- `prevalence_*` makes both FPR and PR-AUC worse.
+- `source_class_balanced` (F3) meets the letter of the rule (FPR 0.1678 → 0.0006) only by collapsing macro recall to 0.0366. The collapse is an unweighted-quantile artifact on `mishra` and a ranking failure on `moz` (recall stays 0.0000 even with a weighted quantile).
+- `format_masked` removes a format shortcut but worsens LOSO (PR-AUC 0.5473 → 0.5215).
+
+## 5. Failure analysis
+
+- **`moz` is a language-shift fold.** The card lists MOZ as Portuguese (Mozambique), and the manifest tags 100.00% of it `pt`. A stopword heuristic (not a language-ID model) puts 81.33% of `moz` rows in "other" versus 8.51% in `mishra`. The highest `moz` ham FPR sits in the non-English bucket (0.3393). At the frozen threshold `moz` recall is 0.3187 and FPR 0.3111; PR-AUC is 0.2329 against a base rate of 0.2343.
+- **ExAIS is transactional ham.** Under LOSO, transactional ham FPR is 0.7905 and bank-OTP ham FPR is 0.6923. The model reads invoice and alert language as spammy.
+- **Synthetic gold false positives are legitimate bank/service messages.** svm FPR is 0.5429 on 35 ham rows. The pool contains almost no real bank-alert ham, so this is a data gap as much as a model gap.
+- **Recalibration on labelled target ham does not fix `moz`.** At k=100, mean recall is 0.0073 at a realised FPR of 0.0240.
+- **F3 passes the rule only through collapsed recall.** On `mishra` the collapse is the unweighted OOF quantile (a weighted quantile recovers 0.2328 recall); on `moz` recall stays 0.0000 even with a weighted quantile, so that fold is a ranking failure. No arm is a fix.
+- **Pool-wide aggregates flatter the model.** One source dominates the positives.
+
+## 6. Limitations
+
+- Positive-heavy synthetic pool; not a field sample.
+- No real bank-alert ham, and almost no multilingual coverage.
+- One message at a time; no conversation context.
+- Threshold does not port across sources; ranking does not always either.
+- The normaliser's benefit is bought with a higher FPR (0.0134 → 0.0201 on svm).
+- mmBERT-base is measured but not hosted; the hosted path is svm only.
+- Accuracy is never reported; the base rate would dominate it.
+
+## 7. The demo app
+
+`streamlit run app/app.py` (see `requirements-app.txt` for the minimal
+install). The app shows:
+
+- a calibrated P(spam), the conformal set, and one band;
+- extracted URL(s) and basic message stats;
+- an optional sender-ID field that is displayed only and **does not change
+  the score** (experimental);
+- an always-visible notice: triage aid, not a verdict; about 54% FPR on synthetic bank/service ham; almost no real bank-alert ham in the pool; weak on non-English held-out sources; nothing stored or logged;
+- 10 invented synthetic demo messages, verified to have no near-duplicate in gold or the pool: 0 pairs at the 0.90 char-TF-IDF rule, maximum similarity 0.47 against the pool and 0.46 against gold.
+
+<!-- Screenshot placeholders: replace with real captures before publishing. -->
+
+| Screenshot | File |
+|---|---|
+| Empty state with the notice | `docs/img/app-empty.png` *(placeholder)* |
+| Scored smishing example | `docs/img/app-scam.png` *(placeholder)* |
+| "Needs review" example | `docs/img/app-review.png` *(placeholder)* |
+
+mmBERT-base is available only behind `SMISHLENS_ENABLE_MMBERT=1` and is
+never required by the hosted app.
+
+## 8. How to run
 
 ```bash
 git clone <repo> smishlens && cd smishlens
-make setup      # venv, deps, download UCI, build the frozen split, train if needed
-make test       # pytest
-make app        # Streamlit demo on http://localhost:8501
-make serve      # FastAPI on http://127.0.0.1:8000 (POST /classify, GET /health)
-make eda        # regenerate reports/figures/ and reports/eda.md
-make data       # fetch every Tier 2 source and rebuild the modern pool locally
+make setup          # venv + deps + UCI anchor + frozen split
+make test           # pytest
+make app            # Streamlit on http://localhost:8501
+make summary        # regenerate all docs from the JSONs
 ```
 
-`make setup` and `make train` **never** touch the test split. `smishlens.final_eval` is a
-one-shot script that refuses to overwrite `reports/results/test_metrics.json`; it is not wired
-into any target on purpose.
+Capstone app only (no dev tooling):
 
-## Repo layout
-
-```
-src/smishlens/    library: data, normalise, features, models, calibrate, conformal,
-                  policy, predict, train, final_eval, experiments, eda, loso, probes
-serve/api.py      FastAPI wrapper (no logic; reads artifacts/ via ARTIFACT_DIR)
-app/app.py        Streamlit demo, same code path as the API
-data/             download_data.py, audit_sources.py, build_uci_anchor.py,
-                  build_modern_pool.py, cards/ (one DATA_CARD per source), raw/ (ignored)
-reports/          eda.md, error_analysis.md, verification_log.md, results/, figures/
-tests/            pytest suite (normaliser, data, pipeline, serving, conformal/policy)
-artifacts/        trained model + manifest (git-ignored; rebuilt by `make train`)
-models/           third-party encoder weights (git-ignored; data/download_models.py)
+```bash
+pip install -r requirements-app.txt
+python -m smishlens.serve --build    # writes artifacts/serve/ (git-ignored)
+streamlit run app/app.py
 ```
 
-## Data and licences
+The FastAPI wrapper (`make serve`) and the original UCI model remain for
+the Tier 1 pipeline; the capstone app uses `smishlens.serve` and the pool
+artifact.
 
-Only **scripts** and **processed splits** are committed. Raw message text is git-ignored: it
-contains PII, and several licences do not permit redistribution. See `data/README.md` for the
-full acquisition manifest and `data/processed/uci/DATA_CARD.md` for the anchor card.
+## 9. Repo layout
 
-| Source | Rows | Labels | Licence | Use |
-|---|---|---|---|---|
-| UCI SMS Spam Collection v.1 | 5,574 (5,171 unique) | 4,827 ham / 747 spam | CC BY 4.0 | Tier 1 anchor |
-| IMC'25 smishing | 33,869 | smishing only | CC BY 4.0 | Tier 2, recall-only |
-| Mishra & Soni | 5,971 | ham / spam / smishing | CC BY 4.0 | Tier 2, LOSO |
-| MOZ-Smishing | 2,561 | 2,009 / 552 | unclear (card carries a *model* licence) | Tier 2, LOSO |
-| ExAIS SMS Spam | 5,240 | 2,890 ham / 2,350 spam | unclear (no licence file) | **ham-only 2026-11-21**: 2,330 ham kept, every spam row dropped ("spam" is bulk/unsolicited, not smishing); FPR-only LOSO fold |
-| Smishtank Dataset I | 1,062 | smishing only | unclear (cite only) | Tier 2, recall-only |
-| WSPR Lab | 68,029 msgs | phishing only | MIT (repo) | Tier 2, recall-only |
-| Africa HF set | 10,000 | 5,000 / 5,000 | unclear | **synthetic — never in a test set** |
+```
+src/smishlens/     library: data, normalise, features, calibrate, conformal,
+                   pool_experiments, loso, f_experiments, e7_e10, serve, ...
+app/app.py         Streamlit capstone app (svm, frozen bands)
+serve/api.py       FastAPI wrapper for the Tier 1 UCI artifact
+data/              download/build scripts, cards/, processed splits (raw ignored)
+reports/           verification_log.md, results/*.json, figures/
+docs/              RESULTS_SUMMARY.md, SLIDES_OUTLINE.md
+tests/             pytest suite, including serve and Streamlit AppTest
+artifacts/         trained models + manifests (git-ignored; rebuilt locally)
+```
 
-Sources with unclear licences are used locally and are never redistributed; their text does not
-enter git.
+## 10. Licence
 
-## Evaluation protocol
+Code is MIT (see `LICENSE`). Datasets keep their own licences. Nothing here
+re-licenses third-party data, and **no model trained on the unverified-licence
+sources is cleared for redistribution**; see `MODEL_CARD.md`.
 
-- **Splits.** 3,301 train / 825 calibration / 1,033 test, stratified, seed 42, materialised once by
-  `data/build_uci_anchor.py` and committed. The split is reproducible: rebuilding it from the raw
-  corpus yields a byte-identical tree.
-- **No test tuning.** Model choice (E1–E3) and threshold selection happen on train with 5-fold CV
-  and out-of-fold scores. Conformal quantiles come from calibration. Test is opened once.
-- **Metrics.** PR-AUC is primary; F1, MCC, ROC-AUC, recall at FPR ≤ 1%. Accuracy is not reported
-  because prevalence is 0.125.
-- **Disclosure — the test split was printed once before the final retrain.** An earlier run,
-  before defanged-URL masking was added to `normalise.py`, printed test metrics to the console.
-  Those numbers were never saved to `reports/results/` and were superseded; no decision was taken
-  from them. The single authoritative `test_metrics.json` was written afterwards, once. Full text
-  in `reports/verification_log.md`.
-- **Errors.** All 7 test errors and 13 conformal abstentions are hand-tagged in
-  `reports/error_analysis.md`. The costliest false-positive class is a genuine bank security
-  advisory, which is exactly why the policy is FPR-first.
-
-## Limitations
-
-- **UCI is a 2011 UK/Singapore corpus.** It is saturated (PR-AUC ≈ 0.99 for several models) and
-  says nothing about modern smishing: no parcel-delivery scams, no bank-impersonation lures, no
-  Hinglish, no current shortener domains. Treat every number above as a pipeline check, not a
-  field-performance claim.
-- **The normaliser is untested here.** On UCI the E1 arms tie within fold noise — raw is nominally
-  best by about 0.0003 AP, and the differences are smaller than one fold std. That is expected:
-  the anchor has almost no Unicode or defanging obfuscation for the normaliser to repair. Its
-  value must be shown on the modern pool and the evasion suite (E7/E8) in Tier 2.
-- **Small test sample.** 128 positives; see the intervals.
-- **In-pool conformal coverage only.** Test coverage is 0.948 (ham) / 0.977 (spam) at alpha 0.05.
-  Coverage under a held-out *source* is the separate RQ5 question and is not established here.
-- **No conversation context.** "what is your account number?" is phishing from a stranger and ham
-  from a friend; the model sees one message.
-
-## Licence
-
-Code in this repository is MIT (see `LICENSE`). Datasets keep their own licences, listed above
-and in `data/README.md`; nothing here re-licenses third-party data. Encoder weights
-(`models/`, git-ignored) are third-party checkpoints under their own licences (mmBERT: MIT).
+_Latency (E17, CPU): svm 2.84 ms p50 per message, 3.8 MB on disk._
