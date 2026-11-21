@@ -27,6 +27,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.svm import LinearSVC
 
 from smishlens.features import build_features
+from smishlens.local_data import require_file
 
 SEED = 42
 CV = StratifiedKFold(5, shuffle=True, random_state=SEED)
@@ -212,6 +213,7 @@ def main(argv=None) -> None:
     args = ap.parse_args(argv)
 
     train_path = Path(args.train)
+    require_file(train_path)
     if "test" in train_path.name.lower():
         raise SystemExit("refusing to run experiments on a test split")
     df = pd.read_csv(train_path, encoding_errors="replace")

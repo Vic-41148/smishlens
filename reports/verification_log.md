@@ -1,5 +1,14 @@
 # Verification log
 
+> **Note (2026-11-22).** This log is a record of what was run, not a live
+> index. The public history was rewritten on this date to purge the
+> text-bearing splits (`data/gold_holdout*.csv`,
+> `data/processed/uci/{train,cal,test}.csv`). Short commit ids written before
+> this date refer to pre-rewrite commits and no longer resolve; the two
+> gold-freeze commits were dropped entirely because the split was their only
+> change. Nothing else in the log was edited.
+
+
 ## 2026-11-21 — data acquisition
 
 Environment: Linux, Python 3.14.10, pandas 2.3.3, network available.

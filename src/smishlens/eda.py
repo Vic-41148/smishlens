@@ -23,6 +23,7 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
 from smishlens.features import MetaFeatures  # noqa: E402
+from smishlens.local_data import require_file  # noqa: E402
 from smishlens.normalise import normalise  # noqa: E402
 
 HAM = "#2b6cb0"
@@ -99,6 +100,7 @@ def main(argv=None) -> None:
     ap = argparse.ArgumentParser(description="EDA figures for the UCI anchor.")
     ap.add_argument("--train", default="data/processed/uci/train.csv")
     args = ap.parse_args(argv)
+    require_file(args.train)
     _style()
     FIGS.mkdir(parents=True, exist_ok=True)
 

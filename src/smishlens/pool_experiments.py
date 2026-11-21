@@ -41,6 +41,7 @@ from sklearn.svm import LinearSVC
 
 from smishlens.evaluate import cost_operating_point, metrics_at, ppv, threshold_for_fpr
 from smishlens.features import build_features
+from smishlens.local_data import require_gold, require_uci
 from smishlens.pool import BOTH_CLASSES, HAM_ONLY_SOURCES
 from smishlens.probes import _cv_auc, format_features, shortcut_report
 
@@ -100,10 +101,12 @@ def load_pool() -> pd.DataFrame:
 
 
 def load_uci_train() -> pd.DataFrame:
+    require_uci()
     return pd.read_csv(UCI_DIR / "train.csv")
 
 
 def load_gold() -> pd.DataFrame:
+    require_gold()
     gold = pd.read_csv(GOLD, dtype=str, keep_default_na=False)
     gold["y3"] = gold["label"].str.strip().str.lower()
     gold["y"] = (gold["y3"] != "ham").astype(int)

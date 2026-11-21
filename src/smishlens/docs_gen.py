@@ -205,8 +205,11 @@ def readme() -> str:
         "",
         "The modern pool is frozen by `data/build_modern_pool.py`: exact and",
         "near-duplicate removal, then a stratified 64/16/20 train/calibration/test",
-        "split keyed by `(source, label)`. Processed splits are committed; raw",
-        "message text is git-ignored.",
+        "split keyed by `(source, label)`. No split is committed: every",
+        "processed CSV is text-bearing and git-ignored. The repository carries the",
+        "text-free split manifest (`data/processed/uci/SPLIT_MANIFEST.sha256`),",
+        "the source cards and the build scripts, so the splits rebuild byte for",
+        "byte from the upstream releases.",
         "",
     ]
     lines += data_table(stats)
@@ -495,8 +498,11 @@ def model_card() -> str:
         "",
         "## Data and licences",
         "",
-        "Only scripts and processed splits are committed. Raw message text is",
-        "git-ignored.",
+        "Only scripts, docs and text-free manifests are committed. Every",
+        "processed split is text-bearing, git-ignored and rebuilt locally with",
+        "`make setup`. The UCI anchor is fetched from the upstream CC BY 4.0",
+        "release and re-split at seed 42; it is not redistributed here. The",
+        "synthetic gold holdout is local-only and is not distributed at all.",
         "",
     ]
     lines += data_table(stats)

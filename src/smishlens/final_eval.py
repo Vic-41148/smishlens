@@ -20,6 +20,7 @@ import pandas as pd
 
 from smishlens.conformal import conformal_set, coverage
 from smishlens.evaluate import boot_ci, metrics_at, ppv_table
+from smishlens.local_data import require_file
 from smishlens.policy import decide
 from smishlens.predict import load_model
 
@@ -84,6 +85,7 @@ def main(argv=None) -> None:
     ap.add_argument("--out", default="reports/results/test_metrics.json")
     ap.add_argument("--force", action="store_true", help="overwrite an existing metrics file")
     args = ap.parse_args(argv)
+    require_file(args.test)
 
     out = Path(args.out)
     if out.exists() and not args.force:

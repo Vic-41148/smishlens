@@ -1,0 +1,4 @@
+# UCI anchor split: sha256  file  rows  spam  ham (text-free)
+e958347cfa256dd96187ef1cea084faa6e1afee6fe5cf7307544313efcb8d6b2  train.csv  3301  411  2890
+3672512f57323243dd90c68170d09e4d6686509c1ebc0ef529216e1fe1d51c7f  cal.csv  825  103  722
+8bf435afa6c9f6f03f1b58378d27ef0332bf7c8d14491c3fcb07a345c88b8da8  test.csv  1033  128  905

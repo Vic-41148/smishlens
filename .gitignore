@@ -19,10 +19,11 @@ data/processed/modern/test.csv
 data/processed/review/
 
 # UCI anchor splits: text-bearing, rebuilt locally by make setup. The data
-# card and its attribution stay committed.
+# card, its attribution and the text-free split manifest stay committed.
 data/processed/uci/train.csv
 data/processed/uci/cal.csv
 data/processed/uci/test.csv
+!data/processed/uci/SPLIT_MANIFEST.sha256
 
 # Gold holdout: synthetic, but the evaluation set. Local-only, never
 # committed and never distributed. Rebuild with data/build_gold.py.

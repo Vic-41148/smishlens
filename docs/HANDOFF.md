@@ -1,5 +1,11 @@
 # HANDOFF — smishlens, end of 2026-11-21
 
+> **Note (2026-11-22).** The public history was rewritten on this date to
+> purge the text-bearing splits (`data/gold_holdout*.csv`,
+> `data/processed/uci/{train,cal,test}.csv`). Any short commit id in this
+> dated note refers to a pre-rewrite commit and no longer resolves. The
+> numbers below are unchanged; only the hashes moved.
+
 Text-free note. No SMS text, no gold messages, no raw rows.
 
 ## State

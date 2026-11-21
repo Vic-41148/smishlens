@@ -29,8 +29,11 @@ Three questions follow:
 
 The modern pool is frozen by `data/build_modern_pool.py`: exact and
 near-duplicate removal, then a stratified 64/16/20 train/calibration/test
-split keyed by `(source, label)`. Processed splits are committed; raw
-message text is git-ignored.
+split keyed by `(source, label)`. No split is committed: every
+processed CSV is text-bearing and git-ignored. The repository carries the
+text-free split manifest (`data/processed/uci/SPLIT_MANIFEST.sha256`),
+the source cards and the build scripts, so the splits rebuild byte for
+byte from the upstream releases.
 
 | Source | Pool rows | ham / positive | Licence status | Role |
 |---|---:|---|---|---|

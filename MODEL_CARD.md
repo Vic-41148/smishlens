@@ -36,8 +36,11 @@ Streamlit triage demo, not for automated blocking.
 
 ## Data and licences
 
-Only scripts and processed splits are committed. Raw message text is
-git-ignored.
+Only scripts, docs and text-free manifests are committed. Every
+processed split is text-bearing, git-ignored and rebuilt locally with
+`make setup`. The UCI anchor is fetched from the upstream CC BY 4.0
+release and re-split at seed 42; it is not redistributed here. The
+synthetic gold holdout is local-only and is not distributed at all.
 
 | Source | Pool rows | ham / positive | Licence status | Role |
 |---|---:|---|---|---|

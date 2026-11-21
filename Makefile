@@ -7,7 +7,7 @@ PY     := .venv/bin/python
 PIP    := .venv/bin/pip
 export PYTHONPATH := src
 
-.PHONY: setup test lint train app serve build-serve eda data summary docs diag e17 public-check real-alerts demo-bands install-hooks deploy-env clean
+.PHONY: setup test lint train app serve build-serve eda data summary docs diag e17 public-check real-alerts demo-bands install-hooks deploy-env clean uci-manifest uci-verify
 
 setup:
 	python3 -m venv .venv
@@ -15,6 +15,7 @@ setup:
 	$(PIP) install -r requirements-dev.txt
 	$(PY) data/download_data.py --only uci
 	$(PY) data/build_uci_anchor.py
+	$(PY) -m smishlens.local_data --write
 	@test -f artifacts/model.joblib || $(PY) -m smishlens.train
 
 test:
@@ -63,6 +64,13 @@ diag:
 # E17 latency/footprint; writes reports/results/e17_latency.json.
 e17:
 	$(PY) -m smishlens.e17_latency
+
+# Regenerate / verify the text-free manifest for the local UCI anchor split.
+uci-manifest:
+	$(PY) -m smishlens.local_data --write
+
+uci-verify:
+	$(PY) -m smishlens.local_data --verify
 
 # Assert the tracked tree matches the public/private deployment split.
 public-check:

@@ -17,8 +17,20 @@ def test_public_tree_rejects_processed_splits():
         "data/processed/modern/train.csv",
         "data/processed/modern/cal.csv",
         "data/processed/modern/test.csv",
+        "data/processed/uci/train.csv",
+        "data/processed/uci/cal.csv",
+        "data/processed/uci/test.csv",
     ):
         assert violations([path]), path
+
+
+def test_public_tree_rejects_the_gold_holdout():
+    for path in ("data/gold_holdout.csv", "data/gold_holdout_v2.csv"):
+        assert violations([path]), path
+
+
+def test_public_tree_rejects_any_unlisted_data_csv():
+    assert violations(["data/processed/uci/some_new_split.csv"])
 
 
 def test_public_tree_rejects_raw_and_review_data():
@@ -40,6 +52,8 @@ def test_public_tree_accepts_code_and_docs():
             "app/app.py",
             "docs/RESULTS_SUMMARY.md",
             "data/processed/modern/split_manifest.csv",
+            "data/processed/uci/SPLIT_MANIFEST.sha256",
+            "data/processed/uci/DATA_CARD.md",
             "reports/results/e3_pool.json",
         ]
     )

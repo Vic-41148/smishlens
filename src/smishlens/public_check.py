@@ -39,7 +39,23 @@ FORBIDDEN_PATHS = (
     "data/processed/modern/train.csv",
     "data/processed/modern/cal.csv",
     "data/processed/modern/test.csv",
+    "data/processed/uci/train.csv",
+    "data/processed/uci/cal.csv",
+    "data/processed/uci/test.csv",
+    "data/gold_holdout.csv",
+    "data/gold_holdout_v2.csv",
     "reports/results/real_alerts.json",
+)
+# The only text-free CSV allowed under data/: ids, source and split, no message.
+ALLOWED_DATA_CSVS = ("data/processed/modern/split_manifest.csv",)
+# Paths whose appearance anywhere in history is a release blocker.
+HISTORY_PATHS = (
+    ARTIFACT_DIR,
+    "data/gold_holdout.csv",
+    "data/gold_holdout_v2.csv",
+    "data/processed/uci/train.csv",
+    "data/processed/uci/cal.csv",
+    "data/processed/uci/test.csv",
 )
 FORBIDDEN_SUFFIXES = (".joblib", ".pt", ".bin", ".safetensors", ".onnx")
 ALLOWED_PATHS = ("data/raw/.gitkeep", "artifacts/.gitkeep")
@@ -61,6 +77,9 @@ def violations(paths: list[str], private: bool = False) -> list[str]:
             continue
         if path.endswith(FORBIDDEN_SUFFIXES):
             problems.append(f"forbidden file type: {path}")
+            continue
+        if path.startswith("data/") and path.endswith(".csv") and path not in ALLOWED_DATA_CSVS:
+            problems.append(f"unlisted data CSV: {path}")
             continue
         name = path.rsplit("/", 1)[-1]
         if name == "review_sample.csv" or (
@@ -161,10 +180,11 @@ def main(argv: list[str] | None = None) -> int:
             ref_paths = tracked_paths(ref)
             paths = ref_paths
             problems += violations(ref_paths, private=False)
-            problems += [
-                f"artifact appears in history of {ref}: {commit}"
-                for commit in history_hits(ref)
-            ]
+            for path in HISTORY_PATHS:
+                problems += [
+                    f"forbidden path appears in history of {ref}: {path} ({commit})"
+                    for commit in history_hits(ref, path)
+                ]
         label = "public tree at " + ", ".join(refs)
 
     if problems:

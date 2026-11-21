@@ -2,8 +2,10 @@
 
 Both gold files are scored in separate blocks. Gold v1 was already scored
 before the ExAIS ham-only rebuild, so this pass is a repeat for v1, not a
-pristine first look. Gold v2 was frozen (commit 99b21ce) before any model saw
-it and is scored exactly once here.
+pristine first look. Gold v2 was frozen before any model saw it and is scored
+exactly once here. Provenance is recorded as the SHA-256 of the file, not a
+commit id: the commit that froze it was dropped from the public history on
+2026-11-22 when the text-bearing splits were purged.
 
 No row text, id or notes leaves this module: every block is an aggregate.
 """
@@ -17,6 +19,7 @@ from pathlib import Path
 import pandas as pd
 
 from smishlens.evaluate import metrics_at, threshold_for_fpr
+from smishlens.local_data import sha256
 from smishlens.pool_experiments import (
     MAX_FPR,
     RESULTS,
@@ -107,7 +110,8 @@ def run() -> dict:
         "note": (
             "second gold pass; v1 was first scored before the ExAIS ham-only "
             "change, so it is not pristine for that decision; v2 was frozen in "
-            "commit 99b21ce before any model scored it and is pristine"
+            "a frozen file, identified by its SHA-256, before any model "
+            "scored it; it is pristine"
         ),
         "scored_once_v2": True,
         "gold_versions": {
@@ -121,7 +125,7 @@ def run() -> dict:
             },
             "v2": {
                 "pristine": True,
-                "frozen_commit": "99b21ce",
+                "frozen_sha256": sha256(GOLD_V2)[:16],
                 "pristine_note": "frozen before any model scored it; scored once here",
                 **versions["v2"],
             },
