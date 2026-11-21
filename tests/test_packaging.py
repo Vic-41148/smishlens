@@ -65,12 +65,14 @@ def test_dev_requirements_extend_the_runtime_pins():
         assert PIN.match(line), f"not an exact pin: {line!r}"
 
 
-def test_sklearn_pin_matches_bundle_metadata():
+def test_bundle_pins_match_metadata():
     meta_path = ROOT / "artifacts" / "serve" / "metadata.json"
     if not meta_path.exists():
         pytest.skip("serving bundle is private; nothing to compare here")
     meta = json.loads(meta_path.read_text())
-    assert _pins(ROOT / "requirements.txt")["scikit-learn"] == meta["sklearn_version"]
+    pins = _pins(ROOT / "requirements.txt")
+    assert pins["scikit-learn"] == meta["sklearn_version"]
+    assert pins["joblib"] == meta["joblib_version"]
 
 
 def test_old_requirements_file_is_gone():

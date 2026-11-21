@@ -133,6 +133,23 @@ The synthetic probe is a fixed invented string; its text is never
 printed, logged or written. Only its band, conformal set and calibrated
 score are recorded.
 
+### Bundle version provenance
+
+`load_bundle()` refuses a pickle whose recorded `sklearn_version` or
+`joblib_version` differs from the running environment, and refuses a
+bundle that records neither. `make build-serve` writes both at build
+time.
+
+This bundle predates the `joblib_version` field. The value now in
+`artifacts/serve/metadata.json` was recorded **post hoc** from the
+verified loading environment, not at build time: the clean Python 3.12
+venv above (pins in the table above) loaded the frozen pickle and
+scored the probe, and that joblib version is the one recorded. The
+bundle was **not** rebuilt or retrained to add the field, so
+`svm_bundle.joblib` and its sha256 are unchanged. The next
+`make build-serve` records the field at build time and retires this
+note.
+
 ## Procedure (two repositories, one clone)
 
 | remote | url | branch | contents |

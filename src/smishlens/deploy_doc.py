@@ -272,6 +272,29 @@ def deploy_env_lines() -> list[str]:
     return lines
 
 
+def bundle_pin_lines() -> list[str]:
+    """How the loader's version pins are recorded, and this bundle's provenance."""
+    return [
+        "### Bundle version provenance",
+        "",
+        "`load_bundle()` refuses a pickle whose recorded `sklearn_version` or",
+        "`joblib_version` differs from the running environment, and refuses a",
+        "bundle that records neither. `make build-serve` writes both at build",
+        "time.",
+        "",
+        "This bundle predates the `joblib_version` field. The value now in",
+        "`artifacts/serve/metadata.json` was recorded **post hoc** from the",
+        "verified loading environment, not at build time: the clean Python 3.12",
+        "venv above (pins in the table above) loaded the frozen pickle and",
+        "scored the probe, and that joblib version is the one recorded. The",
+        "bundle was **not** rebuilt or retrained to add the field, so",
+        "`svm_bundle.joblib` and its sha256 are unchanged. The next",
+        "`make build-serve` records the field at build time and retires this",
+        "note.",
+        "",
+    ]
+
+
 def procedure() -> list[str]:
     env = json.loads(DEPLOY_ENV.read_text()) if DEPLOY_ENV.exists() else {}
     python_version = env.get("python_version", "3.12")
@@ -464,6 +487,7 @@ def deployment() -> str:
     lines += split_table()
     lines += licence_lines(stats)
     lines += deploy_env_lines()
+    lines += bundle_pin_lines()
     lines += procedure()
     lines += runtime_lines(ev, boot, base)
     return "\n".join(lines)

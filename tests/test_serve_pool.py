@@ -105,6 +105,7 @@ def test_save_and_load_roundtrip(tmp_path):
     out = predict_message(loaded, "pay now")
     assert out.band == BAND_SCAM
     assert loaded["meta"]["sklearn_version"]
+    assert loaded["meta"]["joblib_version"]
     assert sorted(p.name for p in tmp_path.iterdir()) == [
         "MANIFEST.sha256",
         "metadata.json",
@@ -129,6 +130,16 @@ def test_load_refuses_a_different_sklearn_version(tmp_path):
         tmp_path,
         _bundle(10.0),
         {"test_or_gold_used": False, "sklearn_version": "0.0.0"},
+    )
+    with pytest.raises(BundleVersionError, match="rebuild"):
+        load_bundle(tmp_path)
+
+
+def test_load_refuses_a_different_joblib_version(tmp_path):
+    save_bundle(
+        tmp_path,
+        _bundle(10.0),
+        {"test_or_gold_used": False, "joblib_version": "0.0.0"},
     )
     with pytest.raises(BundleVersionError, match="rebuild"):
         load_bundle(tmp_path)

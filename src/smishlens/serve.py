@@ -159,6 +159,7 @@ def build_bundle(frame=None) -> tuple[dict, dict]:
         "model_name": "pool_svm_platt_mondrian",
         "model_version": "1.0.0",
         "sklearn_version": sklearn.__version__,
+        "joblib_version": joblib.__version__,
         "created_utc": datetime.now(UTC).isoformat(timespec="seconds"),
         "recipe": (
             "LinearSVC(C=0.5, class_weight=balanced, dual=auto, random_state=42) "
@@ -194,6 +195,7 @@ def save_bundle(directory: Path, bundle: dict, metadata: dict) -> Path:
     digest = artifact_sha256(path)
     metadata = {
         "sklearn_version": sklearn.__version__,
+        "joblib_version": joblib.__version__,
         **metadata,
         "artifact_sha256": digest,
     }
@@ -202,19 +204,23 @@ def save_bundle(directory: Path, bundle: dict, metadata: dict) -> Path:
     return path
 
 
-def check_sklearn_version(meta: dict) -> None:
-    """Refuse a pickle built by a different scikit-learn version."""
-    built = meta.get("sklearn_version")
-    if not built:
-        raise BundleVersionError(
-            "bundle records no scikit-learn version; rebuild it with `make build-serve`"
-        )
-    if built != sklearn.__version__:
-        raise BundleVersionError(
-            f"bundle was built with scikit-learn {built}, but this environment has "
-            f"{sklearn.__version__}; rebuild with `make build-serve` and the pinned "
-            "requirements"
-        )
+def check_bundle_versions(meta: dict) -> None:
+    """Refuse a pickle built by different scikit-learn or joblib versions."""
+    for package, key, current in (
+        ("scikit-learn", "sklearn_version", sklearn.__version__),
+        ("joblib", "joblib_version", joblib.__version__),
+    ):
+        built = meta.get(key)
+        if not built:
+            raise BundleVersionError(
+                f"bundle records no {package} version; rebuild it with `make build-serve`"
+            )
+        if built != current:
+            raise BundleVersionError(
+                f"bundle was built with {package} {built}, but this environment has "
+                f"{current}; rebuild with `make build-serve` and the pinned "
+                "requirements"
+            )
 
 
 def load_bundle(directory: str | Path = DEFAULT_DIR) -> dict:
@@ -226,7 +232,7 @@ def load_bundle(directory: str | Path = DEFAULT_DIR) -> dict:
     meta = json.loads((directory / "metadata.json").read_text())
     if meta.get("test_or_gold_used"):
         raise RuntimeError("refusing a bundle that used test or gold rows")
-    check_sklearn_version(meta)
+    check_bundle_versions(meta)
     bundle = joblib.load(directory / BUNDLE_NAME)
     bundle["meta"] = meta
     return bundle

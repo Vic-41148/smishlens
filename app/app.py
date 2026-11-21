@@ -9,12 +9,20 @@ The hosted path is svm only. mmBERT-base is optional and local-only, behind
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
-import streamlit as st
+# Streamlit Community Cloud runs ``streamlit run app/app.py`` from the repo root
+# with only requirements.txt installed, so src/ is not importable. Derive it
+# from this file; no install step and no hard-coded path.
+_SRC = Path(__file__).resolve().parents[1] / "src"
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
 
-from smishlens.demo_examples import EXAMPLES
-from smishlens.serve import (
+import streamlit as st  # noqa: E402
+
+from smishlens.demo_examples import EXAMPLES  # noqa: E402
+from smishlens.serve import (  # noqa: E402
     BAND_HAM,
     BAND_REVIEW,
     BAND_SCAM,

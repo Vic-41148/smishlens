@@ -79,3 +79,11 @@ def test_failed_checks_render_as_no(tmp_path, monkeypatch):
 
 def test_section_is_wired_into_the_document():
     assert "## Deployment-environment check" in deploy_doc.deployment()
+
+
+def test_bundle_pin_provenance_is_wired_into_the_document():
+    text = deploy_doc.deployment()
+    assert "### Bundle version provenance" in text
+    assert "post hoc" in text
+    assert "`joblib_version`" in text
+    assert "unchanged" in text
