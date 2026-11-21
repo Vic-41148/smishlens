@@ -8,7 +8,7 @@
 | Rows (raw) | 1,062 |
 | Labels | smishing only (`y3 = smish`) |
 | Languages | English |
-| Rows kept in the pool | 835 (the 2026-11-21 re-freeze released one row that ExAIS had previously deduplicated) |
+| Rows kept in the pool | 726 (read from `data/processed/modern/split_manifest.csv`) |
 | Role | Extra positives; recall-only LOSO fold |
 
 ## What it is
@@ -35,9 +35,9 @@ static CSV is the source of record.
   model trained on the pool can learn "has a link" from this source alone; that is exactly what
   the E5 URL-shortcut probe and the E10 link-less slice must measure.
 - 175 rows were dropped inside the source (1,062 → 887): 10 exact duplicates and 165 normalised
-  duplicates. 53 more were within 0.90 cosine of an earlier source (mostly IMC'25), leaving 834.
+  duplicates. 161 more were within 0.90 cosine of an earlier source (mostly IMC'25), leaving 726.
 
 ## What was removed
 
-Exact duplicates, 53 near-duplicates against earlier sources, and normalised duplicates. No
+Exact duplicates, 161 near-duplicates against earlier sources, and normalised duplicates. No
 Smishtank row matched the UCI anchor. See `data/processed/modern/data_audit.json`.
