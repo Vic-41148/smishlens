@@ -158,3 +158,50 @@ partial blob resumed. Do not use `~/.ollama` to judge pull progress on this mach
 | G3 | ⚠️ **open** | weights present, peak VRAM still unmeasured — needs the Day-10 smoke test |
 | G4 | ❌ open | no Hinglish gold holdout yet |
 | G5 | ⚠️ partial | UCI/IMC'25/Mishra CC BY 4.0, WSPR/India HF/OpenTextShield/mmBERT MIT, combined HF ECL-2.0; MOZ, ExAIS, Smishtank, Africa HF unclear |
+
+---
+
+## 2026-11-21 — Tier-1 close-out (C1-C3)
+
+### Disclosure: the test split was printed before the normaliser change
+
+An earlier training run in this project (before defanged-URL masking was added to
+`normalise.py`) printed UCI test-split metrics to the console. Those numbers were
+**not** saved to `reports/results/` and are **superseded**. No decision was taken
+from them: the threshold is frozen from out-of-fold train scores, the conformal
+quantiles come from `cal`, and neither reads test. The single authoritative
+`reports/results/test_metrics.json` was written after the retrain below, once.
+
+### What was rebuilt
+
+| Step | Command | Result |
+|---|---|---|
+| Anchor split materialised | `python data/build_uci_anchor.py` | 5,159 rows after dedup (415 duplicates dropped, 0 label conflicts); 3,301 / 825 / 1,033 |
+| Tier-1 experiments | `python -m smishlens.experiments` | E1/E2/E3 on train only, 5-fold CV, PR-AUC primary |
+| Final retrain | `python -m smishlens.train` | canonical `artifacts/` (was `artifacts/uci`), tau from OOF, Mondrian on `cal` |
+| One-shot test evaluation | `python -m smishlens.final_eval` | wrote `reports/results/test_metrics.json` |
+
+### Reading the experiments
+
+- On UCI, E1 arms tie within one fold-std. That is expected: the anchor has almost
+  no Unicode/defanging obfuscation, so the normaliser has nothing to fix. The
+  normaliser's value must be shown on the modern pool and the evasion suite, not here.
+- E2: word + char TF-IDF is the best feature set (PR-AUC 0.9848 ± 0.0044); adding
+  meta features is neutral-to-slightly-negative on this anchor.
+- E3: LinearSVC wins (PR-AUC 0.9845 ± 0.0064), ahead of LR/CNB/MNB/RF, and is the
+  classifier already used by the production pipeline. Champion confirmed, not changed.
+
+### Canonical artifact directory
+
+`artifacts/` is the only artifact root. `smishlens.train` now defaults to it;
+`serve/api.py` and `app/app.py` already read `ARTIFACT_DIR` with default
+`artifacts`. `artifacts/uci` was removed so two models cannot be confused.
+
+### Known limitation
+
+The anchor test split has 128 spam rows, so one evaluation is a small sample: the
+bootstrap 95% interval for recall is 0.946-1.000 and for precision 0.935-0.992
+(`reports/results/test_metrics.json`). Quote the intervals, not the point estimates
+alone. Conformal coverage on test is 0.948 (ham) / 0.977 (spam) at alpha = 0.05,
+consistent with the 95% target on this in-pool split. Coverage under a held-out
+source is the separate question RQ5 studies; nothing here establishes it.

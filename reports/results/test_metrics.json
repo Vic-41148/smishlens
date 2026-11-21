@@ -1,0 +1,93 @@
+{
+  "generated_utc": "2026-11-21T05:56:46+00:00",
+  "split": "test (frozen, touched once)",
+  "test_file": "data/processed/uci/test.csv",
+  "n_rows": 1033,
+  "n_pos": 128,
+  "n_neg": 905,
+  "prevalence": 0.12391093901258471,
+  "model_name": "word_char_meta_linearsvc_sigmoid",
+  "model_version": "1.0.0",
+  "dataset_sha256_16": "f97f67a049e40da3",
+  "threshold": {
+    "value": 0.15136336820370772,
+    "policy": "max recall s.t. FPR <= 0.01"
+  },
+  "conformal": {
+    "alpha": 0.05,
+    "q_hat": {
+      "0": 0.03432487942709782,
+      "1": 0.9393417060003642
+    }
+  },
+  "operating_point": {
+    "n_pos": 128,
+    "n_neg": 905,
+    "recall": 0.9765625,
+    "fpr": 0.004419889502762431,
+    "precision": 0.9689922480620154,
+    "f1": 0.9727626459143969,
+    "pr_auc": 0.9937889298681283,
+    "roc_auc": 0.9988691298342541
+  },
+  "bootstrap_95ci": {
+    "recall": {
+      "lo": 0.9457364341085271,
+      "hi": 1.0
+    },
+    "precision": {
+      "lo": 0.9349549310710499,
+      "hi": 0.9924839877471456
+    },
+    "f1": {
+      "lo": 0.9510179010179011,
+      "hi": 0.9893312317600266
+    },
+    "pr_auc": {
+      "lo": 0.9856496903440172,
+      "hi": 0.9994168960930158
+    }
+  },
+  "conformal_coverage": {
+    "0": 0.9480662983425414,
+    "1": 0.9765625
+  },
+  "abstain_rate": 0.02904162633107454,
+  "policy_actions": {
+    "deliver": 874,
+    "quarantine": 30,
+    "junk": 129
+  },
+  "policy_junk_confusion": {
+    "tp": 125,
+    "fp": 4,
+    "fn": 3,
+    "tn": 901
+  },
+  "ppv_by_prevalence": [
+    {
+      "prevalence": 0.5,
+      "ppv": 0.9954944252312188,
+      "caught_per_1000": 488.28125,
+      "false_alarms_per_1000": 2.2099447513812156
+    },
+    {
+      "prevalence": 0.2,
+      "ppv": 0.9822180545787641,
+      "caught_per_1000": 195.3125,
+      "false_alarms_per_1000": 3.535911602209945
+    },
+    {
+      "prevalence": 0.1,
+      "ppv": 0.9608605913380276,
+      "caught_per_1000": 97.65625,
+      "false_alarms_per_1000": 3.9779005524861883
+    },
+    {
+      "prevalence": 0.05,
+      "ppv": 0.9208159344908142,
+      "caught_per_1000": 48.828125,
+      "false_alarms_per_1000": 4.198895027624309
+    }
+  ]
+}

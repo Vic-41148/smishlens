@@ -150,7 +150,7 @@ def train_mmbert_pipeline(
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Train the classical detector on the UCI anchor.")
     ap.add_argument("--data", default="data/raw/uci/SMSSpamCollection")
-    ap.add_argument("--out", default="artifacts/uci")
+    ap.add_argument("--out", default="artifacts")
     ap.add_argument("--C", type=float, default=0.5)
     ap.add_argument("--alpha", type=float, default=0.05)
     ap.add_argument("--max-fpr", type=float, default=0.01)
