@@ -1,0 +1,409 @@
+{
+  "note": "svm only; no gold; folds mishra, moz, exais; macro is the unweighted mean over mishra and moz; ExAIS FPR is separate and never enters the macro",
+  "scope": "LOSO, each arm gets its own train-OOF 1% FPR threshold",
+  "success_rule": "macro LOSO FPR at the arm's own frozen 1% threshold must fall by at least 0.05 versus the baseline, while macro LOSO PR-AUC may fall by at most 0.02. Every arm is reported, including failures.",
+  "guard": {
+    "expected": {
+      "macro_recall": 0.40287514209928,
+      "macro_fpr": 0.16781090773573148,
+      "macro_pr_auc": 0.5472612102174469
+    },
+    "observed": {
+      "macro_recall": 0.40287514209928,
+      "macro_fpr": 0.16781090773573148,
+      "macro_pr_auc": 0.5472612102174469
+    },
+    "tolerance": 1e-06,
+    "passed": true
+  },
+  "arms": {
+    "baseline": {
+      "per_source": {
+        "mishra": {
+          "mode": "both",
+          "tau": 0.40876556688181187,
+          "n_pos": 232,
+          "n_neg": 367,
+          "recall": 0.4870689655172414,
+          "fpr": 0.02452316076294278,
+          "pr_auc": 0.8616483266498746
+        },
+        "moz": {
+          "mode": "both",
+          "tau": 0.4736325599320801,
+          "n_pos": 546,
+          "n_neg": 1784,
+          "recall": 0.31868131868131866,
+          "fpr": 0.31109865470852016,
+          "pr_auc": 0.23287409378501928
+        },
+        "exais": {
+          "mode": "fpr_only",
+          "tau": 0.5714008885345423,
+          "n_pos": 0,
+          "n_neg": 2330,
+          "fpr": 0.3811158798283262
+        }
+      },
+      "macro": {
+        "macro_recall": 0.40287514209928,
+        "macro_fpr": 0.16781090773573148,
+        "macro_pr_auc": 0.5472612102174469
+      },
+      "elapsed_s": 188.8292749459997
+    },
+    "prevalence_50": {
+      "per_source": {
+        "mishra": {
+          "mode": "both",
+          "tau": 0.26568916165927375,
+          "n_pos": 232,
+          "n_neg": 367,
+          "recall": 0.47413793103448276,
+          "fpr": 0.021798365122615803,
+          "pr_auc": 0.8645545419301076
+        },
+        "moz": {
+          "mode": "both",
+          "tau": 0.25582808411387487,
+          "n_pos": 546,
+          "n_neg": 1784,
+          "recall": 0.29304029304029305,
+          "fpr": 0.33239910313901344,
+          "pr_auc": 0.21857423070934243
+        },
+        "exais": {
+          "mode": "fpr_only",
+          "tau": 0.35615908989463496,
+          "n_pos": 0,
+          "n_neg": 2330,
+          "fpr": 0.3738197424892704
+        }
+      },
+      "macro": {
+        "macro_recall": 0.3835891120373879,
+        "macro_fpr": 0.17709873413081462,
+        "macro_pr_auc": 0.541564386319725
+      },
+      "elapsed_s": 186.9233741650005,
+      "verdict": {
+        "delta_macro_fpr": 0.009287826395083132,
+        "delta_macro_pr_auc": -0.005696823897721859,
+        "success": false
+      }
+    },
+    "prevalence_20": {
+      "per_source": {
+        "mishra": {
+          "mode": "both",
+          "tau": -0.018912402217775348,
+          "n_pos": 232,
+          "n_neg": 367,
+          "recall": 0.43103448275862066,
+          "fpr": 0.01634877384196185,
+          "pr_auc": 0.8578156845848558
+        },
+        "moz": {
+          "mode": "both",
+          "tau": -0.066257735185345,
+          "n_pos": 546,
+          "n_neg": 1784,
+          "recall": 0.28205128205128205,
+          "fpr": 0.3789237668161435,
+          "pr_auc": 0.202497360884866
+        },
+        "exais": {
+          "mode": "fpr_only",
+          "tau": 0.16591007370217858,
+          "n_pos": 0,
+          "n_neg": 2330,
+          "fpr": 0.31459227467811157
+        }
+      },
+      "macro": {
+        "macro_recall": 0.35654288240495136,
+        "macro_fpr": 0.19763627032905268,
+        "macro_pr_auc": 0.5301565227348609
+      },
+      "elapsed_s": 188.82919860500078,
+      "verdict": {
+        "delta_macro_fpr": 0.029825362593321192,
+        "delta_macro_pr_auc": -0.01710468748258598,
+        "success": false
+      }
+    },
+    "prevalence_05": {
+      "per_source": {
+        "mishra": {
+          "mode": "both",
+          "tau": -0.4008924468364651,
+          "n_pos": 232,
+          "n_neg": 367,
+          "recall": 0.4224137931034483,
+          "fpr": 0.01634877384196185,
+          "pr_auc": 0.8276221706214663
+        },
+        "moz": {
+          "mode": "both",
+          "tau": -0.43039806644305534,
+          "n_pos": 546,
+          "n_neg": 1784,
+          "recall": 0.2509157509157509,
+          "fpr": 0.4170403587443946,
+          "pr_auc": 0.1848466372117179
+        },
+        "exais": {
+          "mode": "fpr_only",
+          "tau": -0.16293276848503147,
+          "n_pos": 0,
+          "n_neg": 2330,
+          "fpr": 0.26995708154506437
+        }
+      },
+      "macro": {
+        "macro_recall": 0.3366647720095996,
+        "macro_fpr": 0.21669456629317824,
+        "macro_pr_auc": 0.506234403916592
+      },
+      "elapsed_s": 191.2558463919995,
+      "verdict": {
+        "delta_macro_fpr": 0.04888365855744675,
+        "delta_macro_pr_auc": -0.04102680630085487,
+        "success": false
+      }
+    },
+    "source_class_balanced": {
+      "per_source": {
+        "mishra": {
+          "mode": "both",
+          "tau": 0.5423842040369165,
+          "n_pos": 232,
+          "n_neg": 367,
+          "recall": 0.07327586206896551,
+          "fpr": 0.0,
+          "pr_auc": 0.9275571656514446
+        },
+        "moz": {
+          "mode": "both",
+          "tau": 0.6496292120589324,
+          "n_pos": 546,
+          "n_neg": 1784,
+          "recall": 0.0,
+          "fpr": 0.0011210762331838565,
+          "pr_auc": 0.44053035821237235
+        },
+        "exais": {
+          "mode": "fpr_only",
+          "tau": 0.47495929776924845,
+          "n_pos": 0,
+          "n_neg": 2330,
+          "fpr": 0.14420600858369098
+        }
+      },
+      "macro": {
+        "macro_recall": 0.036637931034482756,
+        "macro_fpr": 0.0005605381165919282,
+        "macro_pr_auc": 0.6840437619319085
+      },
+      "elapsed_s": 185.31324793800013,
+      "verdict": {
+        "delta_macro_fpr": -0.16725036961913956,
+        "delta_macro_pr_auc": 0.13678255171446163,
+        "success": true
+      }
+    },
+    "format_masked": {
+      "per_source": {
+        "mishra": {
+          "mode": "both",
+          "tau": 0.4756336288913702,
+          "n_pos": 232,
+          "n_neg": 367,
+          "recall": 0.4224137931034483,
+          "fpr": 0.01907356948228883,
+          "pr_auc": 0.8782969194726048
+        },
+        "moz": {
+          "mode": "both",
+          "tau": 0.5006060426593932,
+          "n_pos": 546,
+          "n_neg": 1784,
+          "recall": 0.11904761904761904,
+          "fpr": 0.38228699551569506,
+          "pr_auc": 0.1646211219072325
+        },
+        "exais": {
+          "mode": "fpr_only",
+          "tau": 0.5213140607761513,
+          "n_pos": 0,
+          "n_neg": 2330,
+          "fpr": 0.38412017167381973
+        }
+      },
+      "macro": {
+        "macro_recall": 0.2707307060755337,
+        "macro_fpr": 0.20068028249899195,
+        "macro_pr_auc": 0.5214590206899187
+      },
+      "elapsed_s": 108.12860251799975,
+      "verdict": {
+        "delta_macro_fpr": 0.03286937476326046,
+        "delta_macro_pr_auc": -0.02580218952752822,
+        "success": false
+      }
+    }
+  },
+  "time_box": {
+    "limit_s": 900,
+    "violated": false,
+    "arms": {
+      "prevalence_50": 186.9233741650005,
+      "prevalence_20": 188.82919860500078,
+      "prevalence_05": 191.2558463919995,
+      "source_class_balanced": 185.31324793800013,
+      "format_masked": 108.12860251799975
+    }
+  },
+  "f1_fp_by_ham_category": {
+    "mishra": {
+      "bank_otp": {
+        "n_ham": 0,
+        "n_flagged": 0,
+        "fpr": null
+      },
+      "transactional": {
+        "n_ham": 4,
+        "n_flagged": 1,
+        "fpr": 0.25
+      },
+      "promo": {
+        "n_ham": 11,
+        "n_flagged": 0,
+        "fpr": 0.0
+      },
+      "chatty": {
+        "n_ham": 352,
+        "n_flagged": 8,
+        "fpr": 0.022727272727272728
+      },
+      "total": {
+        "n_ham": 367,
+        "n_flagged": 9,
+        "fpr": 0.02452316076294278
+      }
+    },
+    "moz": {
+      "bank_otp": {
+        "n_ham": 5,
+        "n_flagged": 5,
+        "fpr": 1.0
+      },
+      "transactional": {
+        "n_ham": 15,
+        "n_flagged": 3,
+        "fpr": 0.2
+      },
+      "promo": {
+        "n_ham": 11,
+        "n_flagged": 9,
+        "fpr": 0.8181818181818182
+      },
+      "chatty": {
+        "n_ham": 1753,
+        "n_flagged": 538,
+        "fpr": 0.30690245293782087
+      },
+      "total": {
+        "n_ham": 1784,
+        "n_flagged": 555,
+        "fpr": 0.31109865470852016
+      }
+    },
+    "exais": {
+      "bank_otp": {
+        "n_ham": 39,
+        "n_flagged": 27,
+        "fpr": 0.6923076923076923
+      },
+      "transactional": {
+        "n_ham": 315,
+        "n_flagged": 249,
+        "fpr": 0.7904761904761904
+      },
+      "promo": {
+        "n_ham": 126,
+        "n_flagged": 73,
+        "fpr": 0.5793650793650794
+      },
+      "chatty": {
+        "n_ham": 1850,
+        "n_flagged": 539,
+        "fpr": 0.2913513513513514
+      },
+      "total": {
+        "n_ham": 2330,
+        "n_flagged": 888,
+        "fpr": 0.3811158798283262
+      }
+    }
+  },
+  "f5_prior_em": {
+    "mishra": {
+      "true_prevalence": 0.38731218697829717,
+      "source_prevalence": 0.8620184254606366,
+      "em_prevalence": 0.38949015169643536,
+      "frozen": {
+        "tau": 0.40876556688181187,
+        "recall": 0.4870689655172414,
+        "fpr": 0.02452316076294278
+      },
+      "prior_adjusted": {
+        "tau": 0.6619993128729168,
+        "recall": 0.4870689655172414,
+        "fpr": 0.02452316076294278
+      }
+    },
+    "moz": {
+      "true_prevalence": 0.23433476394849787,
+      "source_prevalence": 0.9039230940208935,
+      "em_prevalence": 0.9999999999293401,
+      "frozen": {
+        "tau": 0.4736325599320801,
+        "recall": 0.31868131868131866,
+        "fpr": 0.31109865470852016
+      },
+      "prior_adjusted": {
+        "tau": 0.9999999999758133,
+        "recall": 0.31868131868131866,
+        "fpr": 0.31109865470852016
+      }
+    },
+    "exais": {
+      "true_prevalence": 0.0,
+      "source_prevalence": 0.9233162925094466,
+      "em_prevalence": 0.8273910988307572,
+      "frozen": {
+        "tau": 0.5714008885345423,
+        "recall": NaN,
+        "fpr": 0.3811158798283262
+      },
+      "prior_adjusted": {
+        "tau": 0.9428306426698833,
+        "recall": NaN,
+        "fpr": 0.3811158798283262
+      }
+    }
+  },
+  "f4_e5": {
+    "baseline": {
+      "imc25_vs_rest_auc_from_format": 0.9641913737390617,
+      "exais_vs_rest_auc_from_format": 0.947145992199059,
+      "format_only_auc_pooled": 0.977911543714931
+    },
+    "format_masked": {
+      "imc25_vs_rest_auc_from_format": 0.8896852383679826,
+      "exais_vs_rest_auc_from_format": 0.9089333946548612,
+      "format_only_auc_pooled": 0.9546944188950269
+    }
+  }
+}

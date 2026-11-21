@@ -1236,3 +1236,58 @@ k=100 local calibration) and F7 (unfrozen mmBERT-small on `moz`, stop at 15
 minutes) are optional and run only if F1-F5 finish early; if skipped, that is
 stated. No arm touches gold.
 
+
+### F1-F5 results — `reports/results/f_experiments.json`
+
+The guard passed exactly: the baseline arm through this module reproduced the
+E4 svm macro recall 0.402875, FPR 0.167811 and PR-AUC 0.547261 to `1e-6`, so
+the other arms ran.
+
+| arm | macro recall | macro FPR | macro PR-AUC | Δ FPR | Δ PR-AUC | ExAIS FPR | success |
+|---|---:|---:|---:|---:|---:|---:|---|
+| baseline | 0.4029 | 0.1678 | 0.5473 | +0.0000 | +0.0000 | 0.3811 | — |
+| prevalence_50 | 0.3836 | 0.1771 | 0.5416 | +0.0093 | -0.0057 | 0.3738 | no |
+| prevalence_20 | 0.3565 | 0.1976 | 0.5302 | +0.0298 | -0.0171 | 0.3146 | no |
+| prevalence_05 | 0.3367 | 0.2167 | 0.5062 | +0.0489 | -0.0410 | 0.2700 | no |
+| source_class_balanced | 0.0366 | 0.0006 | 0.6840 | -0.1673 | +0.1368 | 0.1442 | yes |
+| format_masked | 0.2707 | 0.2007 | 0.5215 | +0.0329 | -0.0258 | 0.3841 | no |
+
+Reading:
+
+- **F2 (prevalence reweighting) fails at every target.** Lowering the training
+  prevalence raises macro FPR (0.1678 → 0.1771 / 0.1976 / 0.2167) and lowers
+  macro PR-AUC (0.5473 → 0.5416 / 0.5302 / 0.5062). It also lowers ExAIS FPR,
+  but not enough to matter, and the both-class operating point gets worse.
+- **F3 (source × class balanced) passes the letter of the rule and fails the
+  intent.** Macro FPR falls by 0.1673 and PR-AUC rises by 0.1368, but macro
+  recall collapses to 0.0366 (mishra 0.0733, moz 0.0000). ExAIS FPR falls to
+  0.1442, also at the cost of recall. The pre-registered rule had no recall
+  floor, so this arm is reported as a rule-pass with a collapsed operating
+  point, **not as a fix**. This is the main surprise of F.
+- **F4 (format-masked view) lowers the format shortcut but worsens LOSO.** The
+  E5 source-vs-rest format AUC falls (IMC'25 0.9642 → 0.8897; ExAIS 0.9471 →
+  0.9089; pooled 0.9779 → 0.9547), so the masks did remove format information.
+  LOSO nevertheless gets worse: macro recall 0.4029 → 0.2707, FPR 0.1678 →
+  0.2007, PR-AUC 0.5473 → 0.5215. Format cues were not the main cause of the
+  source shift; removing them removes signal too.
+- **F1: false positives are not only bank messages.** At the baseline frozen
+  threshold, `moz` flags 5/5 bank-OTP ham, 9/11 promo ham and 538/1,753 chatty
+  ham; ExAIS flags 249/315 transactional ham and 27/39 bank-OTP ham; `mishra`
+  flags 8/352 chatty ham. Counts only; no text or ids.
+- **F5: EM prevalence is close on `mishra`, badly wrong on `moz` and `exais`.**
+  Estimated vs true: mishra 0.3895 vs 0.3873; moz 1.0000 vs 0.2343; exais
+  0.8274 vs 0.0000. The prior-adjusted recall/FPR are identical to the frozen
+  values on every fold because the adjustment is a monotone transform and the
+  threshold is a quantile: it changes the probability cutoff, not the decision.
+  It assumes `p(x|y)` is fixed and is a diagnostic, not a fix.
+
+| held out | true prevalence | source prevalence | EM prevalence | frozen recall / FPR | adjusted recall / FPR |
+|---|---:|---:|---:|---|---|
+| mishra | 0.3873 | 0.8620 | 0.3895 | 0.4871 / 0.0245 | 0.4871 / 0.0245 |
+| moz | 0.2343 | 0.9039 | 1.0000 | 0.3187 / 0.3111 | 0.3187 / 0.3111 |
+| exais | 0.0000 | 0.9233 | 0.8274 | — / 0.3811 | — / 0.3811 |
+
+Time-box: no arm exceeded 15 minutes. The slowest was `prevalence_05` at
+191.3 s, so every arm kept all three folds. F6 and F7 were skipped as optional
+because F1-F5 already took about 18 minutes in total; no F6/F7 result exists.
+No gold row was read or scored.
