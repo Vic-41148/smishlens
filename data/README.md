@@ -8,6 +8,13 @@ Run `python data/download_data.py` to rebuild the data tree, and
 `python data/download_models.py` to fetch the encoder weights into `models/`
 (also git-ignored).
 
+Processed text is not committed either. The modern pool splits under
+`data/processed/modern/` and the UCI anchor splits under
+`data/processed/uci/` are **git-ignored** and rebuilt locally by
+`data/build_modern_pool.py` and `data/build_uci_anchor.py` (both run by
+`make setup`). Only the text-free manifest, the source cards and the UCI
+data card are committed.
+
 ---
 
 ## 1. Status by source
