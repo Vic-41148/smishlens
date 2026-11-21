@@ -1,0 +1,25 @@
+{
+  "meta": {
+    "train_file": "data/processed/uci/train.csv",
+    "n_rows": 3301,
+    "n_spam": 411,
+    "prevalence": 0.12450772493183884,
+    "seed": 42,
+    "cv_folds": 5
+  },
+  "best": {
+    "E1": {
+      "variant": "raw (no normaliser)",
+      "ap": 0.9832837664156872
+    },
+    "E2": {
+      "variant": "word + char",
+      "ap": 0.9848376271302375
+    },
+    "E3": {
+      "variant": "LinearSVC",
+      "ap": 0.9844891001752754
+    }
+  },
+  "champion": "LinearSVC"
+}
