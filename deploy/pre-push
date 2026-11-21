@@ -1,0 +1,52 @@
+#!/bin/sh
+# Pre-push guard for the public/private deployment split.
+#
+# Install with `make install-hooks`. Uses the stdlib python3 on PATH, never the
+# virtualenv, so it works in a fresh clone.
+#
+# Rules:
+#   * private-deploy may only go to a remote named "private".
+#   * a ref pushed to "origin" may not have artifacts/serve in its history.
+#   * non-private remotes run public_check on each pushed ref.
+#   * private + private-deploy runs private_check on the working tree.
+set -eu
+
+root=$(git rev-parse --show-toplevel)
+remote_name=${1:-}
+remote_url=${2:-}
+zero=0000000000000000000000000000000000000000
+status=0
+
+if [ -n "${PYTHONPATH:-}" ]; then
+    py_path="$root/src:$PYTHONPATH"
+else
+    py_path="$root/src"
+fi
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+    [ -z "${local_ref:-}" ] && continue
+    # Deletions have no tree to inspect.
+    [ "$local_sha" = "$zero" ] && continue
+
+    if [ "$remote_ref" = "refs/heads/private-deploy" ] && [ "$remote_name" != "private" ]; then
+        echo "pre-push: refusing to push private-deploy to remote '$remote_name'" >&2
+        echo "pre-push: the artifact branch belongs only on the 'private' remote" >&2
+        exit 1
+    fi
+
+    if [ "$remote_name" = "origin" ]; then
+        if git -C "$root" log --format=%h "$local_sha" -- artifacts/serve | grep -q .; then
+            echo "pre-push: refusing '$local_ref': its history touches artifacts/serve" >&2
+            echo "pre-push: origin is the public remote and must never carry the bundle" >&2
+            exit 1
+        fi
+    fi
+
+    if [ "$remote_name" = "private" ] && [ "$remote_ref" = "refs/heads/private-deploy" ]; then
+        PYTHONPATH="$py_path" python3 -m smishlens.public_check --private || status=1
+    else
+        PYTHONPATH="$py_path" python3 -m smishlens.public_check --ref "$local_sha" || status=1
+    fi
+done
+
+exit $status

@@ -38,6 +38,42 @@ def _stub(tmp_path: Path) -> Path:
     return tmp_path
 
 
+def test_app_without_a_bundle_shows_a_clean_message(tmp_path, monkeypatch):
+    monkeypatch.setenv("SMISHLENS_SERVE_ARTIFACT", str(tmp_path))
+    monkeypatch.delenv("SMISHLENS_ENABLE_MMBERT", raising=False)
+
+    at = AppTest.from_file(str(APP), default_timeout=30)
+    at.run()
+
+    assert not at.exception
+    assert any("not distributed in this repo" in e.value for e in at.error)
+    assert any("make build-serve" in i.value for i in at.info)
+
+
+def test_app_with_a_version_mismatch_shows_a_clean_message(tmp_path, monkeypatch):
+    bundle = {
+        "feats": _Feats(),
+        "clf": _Clf(),
+        "platt": {"a": 1.0, "b": 0.0},
+        "q_hat": {"0": 0.2, "1": 0.9},
+        "meta": {"test_or_gold_used": False},
+    }
+    save_bundle(
+        tmp_path,
+        bundle,
+        {"test_or_gold_used": False, "sklearn_version": "0.0.0"},
+    )
+    monkeypatch.setenv("SMISHLENS_SERVE_ARTIFACT", str(tmp_path))
+    monkeypatch.delenv("SMISHLENS_ENABLE_MMBERT", raising=False)
+
+    at = AppTest.from_file(str(APP), default_timeout=30)
+    at.run()
+
+    assert not at.exception
+    assert any("scikit-learn" in e.value for e in at.error)
+    assert any("make build-serve" in i.value for i in at.info)
+
+
 def test_app_renders_notice_and_scores_a_message(tmp_path, monkeypatch):
     _stub(tmp_path)
     monkeypatch.setenv("SMISHLENS_SERVE_ARTIFACT", str(tmp_path))

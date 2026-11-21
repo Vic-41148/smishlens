@@ -19,6 +19,8 @@ from smishlens.serve import (
     BAND_REVIEW,
     BAND_SCAM,
     DEFAULT_DIR,
+    MISSING_BUNDLE_MESSAGE,
+    BundleVersionError,
     load_bundle,
     predict_message,
 )
@@ -106,9 +108,24 @@ def main() -> None:
     path = os.getenv("SMISHLENS_SERVE_ARTIFACT", str(DEFAULT_DIR))
     try:
         bundle = bundle_for(path)
-    except Exception as exc:  # missing or tampered artifact
+    except FileNotFoundError:
+        st.error(MISSING_BUNDLE_MESSAGE)
+        st.info(
+            "The public repository ships code and docs only. To build the bundle "
+            "you need your own licensed copy of the pool data; then run "
+            "`make build-serve` and point `SMISHLENS_SERVE_ARTIFACT` at it."
+        )
+        return
+    except BundleVersionError as exc:
+        st.error(str(exc))
+        st.info(
+            "Install the pinned `requirements.txt` versions, then rebuild with "
+            "`make build-serve`."
+        )
+        return
+    except Exception as exc:  # tampered artifact or other load failure
         st.error(f"No verified pool artifact at `{path}`: {exc}")
-        st.info("Build one with `python -m smishlens.serve --build`.")
+        st.info("Build one with `make build-serve`.")
         return
 
     text = st.text_area(

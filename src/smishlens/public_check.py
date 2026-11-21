@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 import subprocess
 from pathlib import Path
 
@@ -71,9 +72,14 @@ def violations(paths: list[str], private: bool = False) -> list[str]:
     return problems
 
 
+def repo_root() -> Path:
+    """The inspected repository; ``SMISHLENS_REPO_ROOT`` lets tests use a temp repo."""
+    return Path(os.environ.get("SMISHLENS_REPO_ROOT", ROOT))
+
+
 def _git(*args: str) -> str:
     result = subprocess.run(
-        ["git", "-C", str(ROOT), *args],
+        ["git", "-C", str(repo_root()), *args],
         capture_output=True,
         text=True,
         check=True,
@@ -84,7 +90,7 @@ def _git(*args: str) -> str:
 def default_ref() -> str:
     """``main`` when it exists, otherwise ``HEAD``."""
     probe = subprocess.run(
-        ["git", "-C", str(ROOT), "rev-parse", "--verify", "--quiet", "main"],
+        ["git", "-C", str(repo_root()), "rev-parse", "--verify", "--quiet", "main"],
         capture_output=True,
         text=True,
     )
@@ -108,7 +114,7 @@ def history_hits(ref: str | None = None, path: str = ARTIFACT_DIR) -> list[str]:
 
 def verify_manifest(artifact_dir: Path | None = None) -> list[str]:
     """Check every ``sha256  name`` line in MANIFEST.sha256."""
-    directory = artifact_dir or ROOT / ARTIFACT_DIR
+    directory = artifact_dir or repo_root() / ARTIFACT_DIR
     manifest = directory / "MANIFEST.sha256"
     if not manifest.exists():
         return [f"missing manifest: {manifest}"]

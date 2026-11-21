@@ -16,6 +16,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import joblib
+import sklearn
 from sklearn.model_selection import train_test_split
 
 from smishlens.calibrate import apply_platt, fit_platt
@@ -40,6 +41,15 @@ E3_CLASSICAL = RESULTS / "e3_pool.json"
 BAND_SCAM = "likely scam"
 BAND_HAM = "looks ordinary"
 BAND_REVIEW = "needs review"
+
+MISSING_BUNDLE_MESSAGE = (
+    "Model bundle not distributed in this repo. Build it with `make build-serve`; "
+    "that needs your own licensed copy of the pool data."
+)
+
+
+class BundleVersionError(RuntimeError):
+    """The bundle was built with a different scikit-learn version."""
 
 
 @dataclass(frozen=True)
@@ -148,6 +158,7 @@ def build_bundle(frame=None) -> tuple[dict, dict]:
     metadata = {
         "model_name": "pool_svm_platt_mondrian",
         "model_version": "1.0.0",
+        "sklearn_version": sklearn.__version__,
         "created_utc": datetime.now(UTC).isoformat(timespec="seconds"),
         "recipe": (
             "LinearSVC(C=0.5, class_weight=balanced, dual=auto, random_state=42) "
@@ -181,20 +192,41 @@ def save_bundle(directory: Path, bundle: dict, metadata: dict) -> Path:
     path = directory / BUNDLE_NAME
     joblib.dump(bundle, path)
     digest = artifact_sha256(path)
-    metadata = {**metadata, "artifact_sha256": digest}
+    metadata = {
+        "sklearn_version": sklearn.__version__,
+        **metadata,
+        "artifact_sha256": digest,
+    }
     (directory / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
-    (directory / "artifact_sha256.txt").write_text(digest + "\n")
     make_manifest(directory)
     return path
+
+
+def check_sklearn_version(meta: dict) -> None:
+    """Refuse a pickle built by a different scikit-learn version."""
+    built = meta.get("sklearn_version")
+    if not built:
+        raise BundleVersionError(
+            "bundle records no scikit-learn version; rebuild it with `make build-serve`"
+        )
+    if built != sklearn.__version__:
+        raise BundleVersionError(
+            f"bundle was built with scikit-learn {built}, but this environment has "
+            f"{sklearn.__version__}; rebuild with `make build-serve` and the pinned "
+            "requirements"
+        )
 
 
 def load_bundle(directory: str | Path = DEFAULT_DIR) -> dict:
     """Verify the manifest before unpickling, then return the bundle."""
     directory = Path(directory)
+    if not (directory / BUNDLE_NAME).exists():
+        raise FileNotFoundError(MISSING_BUNDLE_MESSAGE)
     verify_manifest(directory)
     meta = json.loads((directory / "metadata.json").read_text())
     if meta.get("test_or_gold_used"):
         raise RuntimeError("refusing a bundle that used test or gold rows")
+    check_sklearn_version(meta)
     bundle = joblib.load(directory / BUNDLE_NAME)
     bundle["meta"] = meta
     return bundle

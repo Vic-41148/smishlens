@@ -9,6 +9,8 @@ from smishlens.serve import (
     BAND_HAM,
     BAND_REVIEW,
     BAND_SCAM,
+    MISSING_BUNDLE_MESSAGE,
+    BundleVersionError,
     band_for_set,
     extract_urls,
     load_bundle,
@@ -102,10 +104,31 @@ def test_save_and_load_roundtrip(tmp_path):
     loaded = load_bundle(tmp_path)
     out = predict_message(loaded, "pay now")
     assert out.band == BAND_SCAM
-    assert (tmp_path / "artifact_sha256.txt").exists()
+    assert loaded["meta"]["sklearn_version"]
+    assert sorted(p.name for p in tmp_path.iterdir()) == [
+        "MANIFEST.sha256",
+        "metadata.json",
+        "svm_bundle.joblib",
+    ]
 
 
 def test_load_refuses_a_bundle_that_used_test_or_gold(tmp_path):
     save_bundle(tmp_path, _bundle(10.0), {"test_or_gold_used": True})
     with pytest.raises(RuntimeError):
+        load_bundle(tmp_path)
+
+
+def test_missing_bundle_has_a_clear_message(tmp_path):
+    with pytest.raises(FileNotFoundError, match="not distributed in this repo"):
+        load_bundle(tmp_path)
+    assert "make build-serve" in MISSING_BUNDLE_MESSAGE
+
+
+def test_load_refuses_a_different_sklearn_version(tmp_path):
+    save_bundle(
+        tmp_path,
+        _bundle(10.0),
+        {"test_or_gold_used": False, "sklearn_version": "0.0.0"},
+    )
+    with pytest.raises(BundleVersionError, match="rebuild"):
         load_bundle(tmp_path)

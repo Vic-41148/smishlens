@@ -7,7 +7,7 @@ PY     := .venv/bin/python
 PIP    := .venv/bin/pip
 export PYTHONPATH := src
 
-.PHONY: setup test lint train app serve eda data summary docs diag e17 public-check clean
+.PHONY: setup test lint train app serve build-serve eda data summary docs diag e17 public-check install-hooks clean
 
 setup:
 	python3 -m venv .venv
@@ -31,6 +31,11 @@ app:
 
 serve:
 	$(PY) -m uvicorn serve.api:app --reload
+
+# Writes artifacts/serve/{svm_bundle.joblib,metadata.json,MANIFEST.sha256}.
+# Needs your own licensed copy of the pool data (data/processed/modern/*.csv).
+build-serve:
+	$(PY) -m smishlens.serve --build
 
 eda:
 	$(PY) -m smishlens.eda
@@ -62,6 +67,13 @@ e17:
 # Assert the tracked tree matches the public/private deployment split.
 public-check:
 	$(PY) -m smishlens.public_check
+
+# Install the committed pre-push template. The hook uses the stdlib python3
+# path only, so it works without the venv.
+install-hooks:
+	@mkdir -p .git/hooks
+	install -m 0755 deploy/pre-push .git/hooks/pre-push
+	@echo "installed .git/hooks/pre-push"
 
 clean:
 	rm -rf .pytest_cache .ruff_cache
