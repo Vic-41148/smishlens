@@ -6,7 +6,6 @@ Requires: pandas, pyarrow (for the Hugging Face parquet files).
 
 from __future__ import annotations
 
-import json
 from collections import Counter
 from pathlib import Path
 
@@ -65,8 +64,15 @@ def exais() -> None:
 
 
 def smishtank() -> None:
-    data = json.loads((RAW / "smishtank" / "smishtank_smishes.json").read_text())
-    print(f"Smishtank      {len(data.get('smishes') or []):>6} records via public API")
+    df = pd.read_csv(
+        RAW / "smishtank" / "analysisdataset.csv",
+        encoding_errors="replace",
+        low_memory=False,
+    )
+    print(
+        f"Smishtank      {len(df):>6} smishing samples (Dataset I, positives only); "
+        f"{df['Url'].notna().sum():,} with a URL"
+    )
 
 
 def wspr() -> None:

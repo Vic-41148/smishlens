@@ -28,7 +28,9 @@ IMC_REPO = "https://github.com/reportsmishing/Smishing-Dataset-IMC25.git"
 EXAIS_REPO = "https://github.com/AbayomiAlli/SMS-Spam-Dataset.git"
 WSPR_REPO = "https://github.com/wspr-ncsu/sms-phishing.git"
 MENDELEY_FILES = "https://data.mendeley.com/api/datasets/f45bkkt8pr/files"
-SMISHTANK_API = "https://l0sry40g26.execute-api.us-west-1.amazonaws.com/prod/getsmish?type=smish"
+# Dataset I: 1,062 smishing samples, Timko & Rahman (CODASPY 2024).
+# https://doi.org/10.1145/3626232.3653282
+SMISHTANK_CSV = "https://smishtank.com/analysisdataset.csv"
 
 HF_DATASETS = {
     "MOZNLP/MOZ-Smishing": "moz",
@@ -135,23 +137,24 @@ def main() -> int:
         print(f"  HF {repo}")
         snapshot_download(repo_id=repo, repo_type="dataset", local_dir=dest)
 
-    # 7. Smishtank public API (100 records per call; bulk release unavailable)
-    st = RAW / "smishtank" / "smishtank_smishes.json"
+    # 7. Smishtank Dataset I (full CSV, 1,062 smishing samples)
+    st = RAW / "smishtank" / "analysisdataset.csv"
     if not exists(st, args.force):
-        print("[7/9] Smishtank public API")
-        fetch(SMISHTANK_API, st)
+        print("[7/9] Smishtank Dataset I")
+        fetch(SMISHTANK_CSV, st)
     else:
         print("[7/9] Smishtank: present")
 
     # 8. NUS SMS Corpus
     print("[8/9] NUS SMS Corpus: NOT DOWNLOADABLE")
-    print("      Historical repo is gone; SEACrowd mirror is a loader stub.")
+    print("      WING-NUS/nus-sms-corpus now returns 404 (deleted/private).")
     print("      UCI already contributes 3,375 NUS ham messages.")
 
     # 9. COVA / COVA-X
-    print("[9/9] COVA / COVA-X: NO PUBLIC DOWNLOAD FOUND")
+    print("[9/9] COVA / COVA-X: ACCESS BY REQUEST ONLY")
     print("      Papers: arXiv 2604.11752 (COVA), 2606.06879 (COVA-X).")
-    print("      Revisit before Tier 3; do not substitute unlabelled synthetic data.")
+    print("      scamlingua.org releases both for non-commercial research on request;")
+    print("      no public download. Email contact@scamlingua.org before Tier 3.")
 
     print("\nDone. Run `python data/audit_sources.py` to verify counts.")
     return 0

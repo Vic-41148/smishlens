@@ -51,7 +51,7 @@ IMC'25         33,869 rows; text non-null 33,869; English 22,078; 157 absolute d
 Mishra & Soni   5,971 rows; 4,844 ham / 489 spam / 638 smishing
 MOZ             2,561 rows; {'Legitimate': 2009, 'Smishing': 552}
 ExAIS           5,240 rows; 2,890 ham / 2,350 spam
-Smishtank         100 records via public API
+Smishtank       1,062 smishing samples (Dataset I, positives only); 941 with a URL
 WSPR           68,029 messages / 35,128 campaigns
 India HF       20,010 rows; {0: 14059, 1: 5951}
 Africa HF      10,000 rows; {1: 5000, 0: 5000}; synthetic={1: 10000}
@@ -63,8 +63,8 @@ Combined HF    55,404 train rows; {'ham': 34559, 'spam': 20845}
 | Gate | Answer | Evidence |
 |---|---|---|
 | **G1** | IMC'25 has a real `text` column plus `translation`, `language`, `scam_type`, `lure_principles`. Dates are phone-UI strings (`Today`, `Yesterday`, localised) — only 157 absolute datetimes. **No time split.** | §1 above; `data/README.md` §2 |
-| **G2** | LOSO-ready sources with both classes: MOZ (2,009/552), ExAIS (2,890/2,350), Mishra & Soni (4,844/1,127). Positives-only: IMC'25, Smishtank, WSPR. | `data/README.md` §2 |
-| **G3** | Not started. `jhu-clsp/mmBERT-base` = 1,249 MB, `mmBERT-small` = 581 MB, both MIT. | HF API query |
+| **G2** | LOSO-ready sources with both classes: MOZ (2,009/552), ExAIS (2,890/2,350), Mishra & Soni (4,844/1,127). Positives-only: IMC'25, Smishtank (1,062), WSPR. | `data/README.md` §2 |
+| **G3** | Weights downloaded, **memory not measured**. `mmBERT-base` 1,249 MB, `mmBERT-small` 581 MB, both MIT. Smoke test still pending. | `models/`, `du -sh` |
 | **G4** | No Hinglish data yet; gold holdout pending. | — |
 | **G5** | Confirmed CC BY 4.0: UCI, IMC'25, Mishra & Soni. MIT: WSPR, India HF. ECL-2.0: combined HF. Unclear: MOZ card licence (model licence on a text dataset), ExAIS (none), Smishtank (none), Africa HF ("other"). | `data/README.md` §1 |
 
@@ -87,3 +87,74 @@ Mish Dataset_5971.csv       649844f1c62a6b27
 MOZ  test.csv               814a11d9b05741c4
 India HF parquet            8165c1d45a24d249
 ```
+
+---
+
+## 2026-11-21 — second pass: full Smishtank, model weights, roadmap §7–§22
+
+Disk before this pass: `/home` 36 GB free of 320 GB (90% used).
+
+### Smishtank: 100-record API sample replaced by Dataset I
+
+The app API caps at 100 records, but the dataset page links a static CSV. Fetched
+`https://smishtank.com/analysisdataset.csv`.
+
+```
+1,062 rows, 23 columns, smishing only (no ham)
+941 rows carry a URL
+messageid, Fulltext, Sender, SenderType, timeReceived, MainText, Url, Subdomain, Domain, TLD,
+RedirectedURL, Detected, Malicious, Phishing, Suspicious, Malware, Brand, URL Subcategory,
+Message Categories, FullyQualifiedDomain, Domain Registrar, Domain Creation Date, Domain Last Update
+```
+
+Encoding note: the file is CRLF, non-ISO extended ASCII, and `Fulltext` holds embedded newlines
+inside quoted fields. `pd.read_csv` needs `encoding_errors="replace"`. Paper: Timko & Rahman,
+CODASPY 2024, DOI `10.1145/3626232.3653282`. The 100-record JSON is kept as a smoke sample only.
+
+Consequence for the design: Smishtank stays **positives-only**, so it is a recall-only LOSO fold
+and never a headline F1. It does add a URL-bearing slice (link-shortener and domain-age columns),
+which the roadmap uses for the URL-shortcut probe.
+
+### Sources that cannot be obtained
+
+| Source | Status | Evidence |
+|---|---|---|
+| NUS SMS Corpus | **404** | `WING-NUS/nus-sms-corpus` appears in the org listing, but clone and codeload ZIP both 404; SEACrowd mirror is a loader stub. UCI already supplies 3,375 NUS ham. |
+| COVA / COVA-X | **request only** | No dataset URL in either paper (arXiv 2604.11752, 2606.06879). `scamlingua.org` states non-commercial research access on request via `contact@scamlingua.org`. Not downloaded, not substituted. |
+
+Both are recorded as blockers for Tier 3, not Tier 1/2.
+
+### Model weights
+
+All four are public third-party checkpoints. `models/` and `/var/lib/ollama` are git-ignored.
+
+| Model | Local path | Bytes | SHA-256 (16) | Licence |
+|---|---|---|---|---|
+| `jhu-clsp/mmBERT-base` | `models/mmBERT-base/pytorch_model.bin` | 1,231,188,142 | `8ea64ec1ea4eb8fc` | MIT |
+| `jhu-clsp/mmBERT-small` | `models/mmBERT-small/pytorch_model.bin` | 563,633,326 | `be7c9ce2af947fb5` | MIT |
+| `telecomsxchange/OpenTextShield` | `models/OpenTextShield/model.safetensors` | 711,446,532 | `8e5f65efc7fecafc` | MIT |
+| `qwen3:4b-instruct` | `/var/lib/ollama` (Ollama tag `0edcdef34593`) | 2.5 GB | — | Apache-2.0 |
+
+Both mmBERT repos ship `pytorch_model.bin`, not `.safetensors`; only OpenTextShield uses
+safetensors. Rebuild with `python data/download_models.py`.
+
+**Correction to an intra-session mistake.** I first reported `~/.ollama` as 32 K and concluded the
+`qwen3:4b-instruct` pull had failed, then killed it. Both were wrong: this host runs Ollama as a
+system service storing blobs in `/var/lib/ollama`, and the pull was healthy at 596 MB / 2.5 GB.
+Restarted, and it completed (`success`, digest verified). No data was corrupted by the kill; the
+partial blob resumed. Do not use `~/.ollama` to judge pull progress on this machine.
+
+### Roadmap
+
+`ROADMAP.md` now holds the complete v4 document, §1–§22 (2,106 lines). Verified that the saved
+§1–§6.5 text is byte-identical to the source file before appending §7–§22.
+
+### Gate status after this pass
+
+| Gate | Status | Note |
+|---|---|---|
+| G1 | ✅ resolved | IMC'25 has a real `text` column; timestamps unusable → no time split |
+| G2 | ✅ resolved | 3 LOSO folds with both classes; 3 positives-only sources |
+| G3 | ⚠️ **open** | weights present, peak VRAM still unmeasured — needs the Day-10 smoke test |
+| G4 | ❌ open | no Hinglish gold holdout yet |
+| G5 | ⚠️ partial | UCI/IMC'25/Mishra CC BY 4.0, WSPR/India HF/OpenTextShield/mmBERT MIT, combined HF ECL-2.0; MOZ, ExAIS, Smishtank, Africa HF unclear |
