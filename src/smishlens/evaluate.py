@@ -31,11 +31,20 @@ def threshold_for_fpr(y, p, max_fpr: float = 0.01):
 
     Call on OUT-OF-FOLD or calibration scores, never on test.
     Returns (threshold, tpr, fpr).
+
+    When not even the second-highest score is inside the budget, the only point
+    that qualifies is "predict nothing". That is returned as a finite sentinel
+    above every observed score rather than ``inf``, so the value survives JSON
+    and still means the same thing for probabilities and decision functions.
     """
+    p = np.asarray(p)
     fpr, tpr, thr = roc_curve(y, p)
     within = np.where(fpr <= max_fpr)[0]
     i = int(within[-1])
-    return float(min(thr[i], 1.0)), float(tpr[i]), float(fpr[i])
+    tau = float(thr[i])
+    if not np.isfinite(tau):
+        tau = float(p.max()) + 1.0 if p.size else 1.0
+    return tau, float(tpr[i]), float(fpr[i])
 
 
 def metrics_at(y, p, tau: float) -> dict[str, float]:
@@ -108,17 +117,31 @@ def cost_operating_point(
     p = np.asarray(p)
     if y.size == 0:
         return {"tau": float("nan"), "cost": float("nan"), "recall": float("nan"), "fpr": float("nan")}
-    _, _, thresholds = roc_curve(y, p)
-    candidates = np.unique(np.concatenate([[np.inf], thresholds]))
-    best = None
-    for tau in candidates:
-        m = metrics_at(y, p, float(tau))
-        cost = fp_cost * (m["fpr"] * m["n_neg"]) + fn_cost * (1 - m["recall"]) * m["n_pos"]
-        if best is None or cost < best["cost"]:
-            best = {
-                "tau": float(tau),
-                "cost": float(cost),
-                "recall": float(m["recall"]),
-                "fpr": float(m["fpr"]),
-            }
+    # Same exact minimiser as scoring every observed threshold, but in O(n log n):
+    # sweep the unique scores upwards and keep suffix counts of positives and
+    # negatives at or above each one. Ties move as a block, as in roc_curve.
+    scores, inverse = np.unique(p, return_inverse=True)
+    n_pos = int((y == 1).sum())
+    n_neg = int((y == 0).sum())
+    pos = np.bincount(inverse, weights=(y == 1).astype(float), minlength=scores.size)
+    neg = np.bincount(inverse, weights=(y == 0).astype(float), minlength=scores.size)
+    pos_ge = np.cumsum(pos[::-1])[::-1]
+    neg_ge = np.cumsum(neg[::-1])[::-1]
+
+    costs = fp_cost * neg_ge + fn_cost * (n_pos - pos_ge)
+    k = int(np.argmin(costs))  # first minimum in ascending score order
+    best = {
+        "tau": float(scores[k]),
+        "cost": float(costs[k]),
+        "recall": float(pos_ge[k] / n_pos) if n_pos else float("nan"),
+        "fpr": float(neg_ge[k] / n_neg) if n_neg else float("nan"),
+    }
+    # Predicting nothing is always a candidate; it wins only on a strict tie-break.
+    if fn_cost * n_pos < best["cost"]:
+        best = {
+            "tau": float("inf"),
+            "cost": float(fn_cost * n_pos),
+            "recall": 0.0 if n_pos else float("nan"),
+            "fpr": 0.0 if n_neg else float("nan"),
+        }
     return best

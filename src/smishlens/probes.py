@@ -66,24 +66,59 @@ def _cv_auc(X, y, seed: int = 0) -> float:
     return float(roc_auc_score(y, proba, multi_class="ovr"))
 
 
-def shortcut_report(df: pd.DataFrame, min_per_class: int = 20) -> dict:
-    """Pooled, per-source and source-identifiability formatting probes."""
+def shortcut_report(
+    df: pd.DataFrame, min_per_class: int = 20, fpr_only: tuple[str, ...] = ()
+) -> dict:
+    """Pooled, per-source and source-identifiability formatting probes.
+
+    ``fpr_only`` names ham-only sources. They have no positives, so a
+    class-separation AUC cannot be estimated for them and they are kept out of
+    the pooled AUC; mixing them in would turn "does this look like spam?" into
+    "which source is this?" without saying so. They get a separate descriptive
+    block instead. Source identifiability still uses every source, because the
+    question there is exactly whether shape reveals the origin.
+    """
     df = df.reset_index(drop=True)
     feats = format_features(df["text"])
     y = df["y"].values
+    fpr_only = tuple(fpr_only)
+    class_rows = ~df["source"].isin(fpr_only).to_numpy()
+    class_feats = feats.loc[class_rows].reset_index(drop=True)
+    class_y = y[class_rows]
 
     out: dict = {
-        "format_only_auc": _cv_auc(feats, y),
-        "length_only_auc": _cv_auc(feats[["n_chars"]], y),
+        "format_only_auc": _cv_auc(class_feats, class_y),
+        "length_only_auc": _cv_auc(class_feats[["n_chars"]], class_y),
+        "class_auc_scope": "rows from sources with both classes present; fpr_only sources excluded",
         "by_source": {},
+        "fpr_only": {},
     }
     for src, group in df.groupby("source"):
+        if str(src) in fpr_only:
+            continue
         if (group.y == 1).sum() >= min_per_class and (group.y == 0).sum() >= min_per_class:
             sub = feats.loc[group.index].reset_index(drop=True)
             out["by_source"][str(src)] = {
                 "format_only_auc": _cv_auc(sub, group.y.values),
                 "length_only_auc": _cv_auc(sub[["n_chars"]], group.y.values),
             }
+
+    for src in fpr_only:
+        group = df[df["source"] == src]
+        if group.empty:
+            continue
+        sub = feats.loc[group.index]
+        out["fpr_only"][src] = {
+            "n_rows": int(len(group)),
+            "n_pos": int((group["y"] == 1).sum()),
+            "n_neg": int((group["y"] == 0).sum()),
+            "class_auc": None,
+            "why": "ham only; no class-separation AUC, FPR is reported by the LOSO runners",
+            "mean_n_chars": float(sub["n_chars"].mean()),
+            "mean_digit_ratio": float(sub["digit_ratio"].mean()),
+            "mean_upper_ratio": float(sub["upper_ratio"].mean()),
+            "share_with_double_space": float(sub["double_space"].mean()),
+        }
 
     # Source identifiability: can formatting tell the sources apart?
     codes = df["source"].astype("category").cat.codes.values
@@ -102,4 +137,5 @@ def shortcut_report(df: pd.DataFrame, min_per_class: int = 20) -> dict:
     else:
         out["source_id_acc_from_format"] = float("nan")
         out["source_id_chance"] = float("nan")
+    out["source_id_sources"] = sorted(df["source"].unique().tolist())
     return out

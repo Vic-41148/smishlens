@@ -29,8 +29,10 @@ def loso(
     """Hold out one source at a time.
 
     Modes: ``both`` (recall, FPR, AUCs), ``recall_only`` (a positives-only
-    source such as Smishtank), ``too_small`` (reported, not scored).
-    ``train_sources`` restricts the training pool, e.g. ``["uci"]`` for E6.
+    source such as Smishtank), ``fpr_only`` (a ham-only source such as ExAIS:
+    it trains, but only its false-positive rate is meaningful), ``too_small``
+    (reported, not scored). ``train_sources`` restricts the training pool, e.g.
+    ``["uci"]`` for E6.
     """
     rows: list[dict] = []
     for src, test in df.groupby("source"):
@@ -47,6 +49,8 @@ def loso(
             mode = "both"
         elif neg == 0 and pos >= min_pos:
             mode = "recall_only"
+        elif pos == 0 and neg >= min_neg:
+            mode = "fpr_only"
         else:
             rows.append({"source": src, "mode": "too_small", "n_pos": pos, "n_neg": neg})
             continue
@@ -55,14 +59,25 @@ def loso(
         metrics = metrics_at(test["y"].values, p, tau)
         if mode == "recall_only":
             metrics = {k: metrics[k] for k in ("n_pos", "n_neg", "recall")}
+        elif mode == "fpr_only":
+            metrics = {k: metrics[k] for k in ("n_pos", "n_neg", "fpr")}
         rows.append({"source": src, "mode": mode, "tau": tau, "n_train": len(train), **metrics})
     return pd.DataFrame(rows)
 
 
 def macro(res: pd.DataFrame) -> dict[str, float]:
-    """Unweighted mean over ``both`` folds. Always print n beside it."""
+    """Unweighted mean over ``both`` folds. Always print n beside it.
+
+    ``fpr_only`` (ham-only) and ``recall_only`` folds are counted but never
+    averaged: they cannot estimate the missing class, so admitting them would
+    silently turn a missing metric into a zero.
+    """
     both = res[res["mode"] == "both"]
-    out: dict[str, float] = {"folds": float(len(both))}
+    out: dict[str, float] = {
+        "folds": float(len(both)),
+        "n_fpr_only": int((res["mode"] == "fpr_only").sum()),
+        "n_recall_only": int((res["mode"] == "recall_only").sum()),
+    }
     for key in ("recall", "fpr", "pr_auc", "roc_auc"):
         if key in both and both[key].notna().any():
             value = float(both[key].mean())
@@ -93,15 +108,21 @@ def write_results(
 ) -> Path:
     """Write per-source rows plus the macro average to ``out_dir/<name>.json``.
 
-    ``macro`` averages ``both`` folds only, so a positives-only source cannot
-    drag it. A metric that does not exist for a fold (``fpr`` on a recall-only
-    source) is left out of that row rather than written as null, so the file is
-    valid JSON and each row reports only what its mode supports.
+    ``macro`` averages ``both`` folds only, so a positives-only or ham-only
+    source cannot drag it. A metric that does not exist for a fold (``fpr`` on
+    a recall-only source, ``recall`` on an ``fpr_only`` source) is left out of
+    that row rather than written as null, so the file is valid JSON and each
+    row reports only what its mode supports. ``by_mode`` lists which sources
+    were treated as one-class, so a reader can see the separation.
     """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     payload = {
         "meta": meta or {},
+        "by_mode": {
+            mode: sorted(res.loc[res["mode"] == mode, "source"].astype(str).tolist())
+            for mode in ("both", "recall_only", "fpr_only", "too_small")
+        },
         "per_source": [
             {k: _clean(v) for k, v in row.items() if _clean(v) is not None}
             for row in res.to_dict(orient="records")

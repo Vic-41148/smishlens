@@ -56,7 +56,13 @@ def test_source_identifiability_from_curly_quotes():
 
 def _loso_frame():
     rows = []
-    for src, n_pos, n_neg in [("a", 20, 20), ("b", 20, 20), ("c", 20, 0), ("d", 4, 0)]:
+    for src, n_pos, n_neg in [
+        ("a", 20, 20),
+        ("b", 20, 20),
+        ("c", 20, 0),
+        ("d", 4, 0),
+        ("e", 0, 20),
+    ]:
         for i in range(n_pos):
             rows.append({"text": f"{src} spam {i}", "y": 1, "source": src})
         for i in range(n_neg):
@@ -70,7 +76,13 @@ def test_loso_modes():
 
     res = loso(_loso_frame(), fp, min_pos=10, min_neg=10)
     modes = dict(zip(res["source"], res["mode"], strict=True))
-    assert modes == {"a": "both", "b": "both", "c": "recall_only", "d": "too_small"}
+    assert modes == {
+        "a": "both",
+        "b": "both",
+        "c": "recall_only",
+        "d": "too_small",
+        "e": "fpr_only",
+    }
     assert macro(res)["folds"] == 2
 
 
@@ -126,6 +138,9 @@ def test_write_results_json_per_source(tmp_path):
     assert by_source["c"]["mode"] == "recall_only"
     assert "fpr" not in by_source["c"]
     assert by_source["d"]["mode"] == "too_small"
+    assert by_source["e"]["mode"] == "fpr_only"
+    assert "recall" not in by_source["e"]
+    assert "fpr" in by_source["e"]
     assert payload["macro"]["folds"] == 2
     assert payload["macro"]["recall"] == 1.0
 

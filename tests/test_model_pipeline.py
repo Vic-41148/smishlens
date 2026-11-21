@@ -69,3 +69,24 @@ def test_build_final_predicts_probabilities(sms_df):
 def test_tune_returns_best_params(sms_df):
     search = tune("cnb", sms_df["text"], sms_df["y"], min_df_word=1, min_df_char=2)
     assert "clf__alpha" in search.best_params_
+
+
+def test_threshold_for_fpr_returns_finite_sentinel_when_nothing_fits():
+    # One negative at the top score, so no threshold inside a 1% budget predicts
+    # anything. The sentinel must stay finite and above every observed score.
+    y = np.array([0, 1, 1, 1])
+    p = np.array([0.9, 0.8, 0.7, 0.6])
+    tau, tpr, fpr = threshold_for_fpr(y, p, 0.01)
+    assert np.isfinite(tau)
+    assert tau > p.max()
+    assert (tpr, fpr) == (0.0, 0.0)
+
+
+def test_threshold_for_fpr_does_not_clamp_decision_function_scores():
+    # A decision function can exceed 1.0; the old clamp to 1.0 broke the budget.
+    y = np.array([0, 0, 1, 1])
+    p = np.array([0.5, 1.5, 2.5, 3.5])
+    tau, tpr, fpr = threshold_for_fpr(y, p, 0.01)
+    assert tau > 1.0  # the old clamp returned 1.0 and let a false positive through
+    assert fpr == 0.0
+    assert tpr == 1.0

@@ -1,53 +1,70 @@
-"""Tier-2 experiment runner on the frozen modern pool: E3, E4, E5, E6.
+"""Tier-2 experiment runner: E5, E3, E4, E6 (+ gold once), classical models.
 
-Rules baked in (roadmap §8, and the 86% base rate):
+Rules baked in (roadmap §8, and the 0.923 base rate):
 
-- Per-source results plus a **macro average across sources**. Never a pooled
-  micro-average, never accuracy, never precision/AP read off the pooled test.
-- Both-class folds: **recall at FPR <= 1%**, with the threshold frozen on the
-  training out-of-fold scores, plus **PR-AUC**. Recall-only folds: recall only.
-- PPV is reported at 5 / 10 / 20% prevalence from that fold's recall and FPR.
-- E6 compares three training arms on the same folds: UCI-only, modern pool
-  unweighted, modern pool with source-balanced sample weights. Weighting only:
-  the frozen split is untouched.
+- Per-source rows plus a **macro average over both-class sources only**. Never a
+  pooled micro-average, never accuracy, never a pooled F1 as a headline.
+- ``mishra`` and ``moz`` are the only both-class sources; ``imc25`` and
+  ``smishtank`` report recall only, even though three IMC'25 rows are ham after
+  the label audit.
+- Thresholds (FPR <= 1% and the 10:1 cost point) are frozen on training
+  out-of-fold scores only. The pool test split is scored once per model.
+- Model selection uses train OOF macro PR-AUC over the both-class sources only.
+- Gold is synthetic and is scored once, after selection, never for tuning.
 
 Usage
 -----
-    python -m smishlens.pool_experiments --only E5 --dry-run 500
-    python -m smishlens.pool_experiments --only E3,E4,E6 --out reports/results
-
-``--dry-run N`` samples at most N rows and writes no files. It exists to check
-the code paths, not to produce numbers.
+    python -m smishlens.pool_experiments --only E5
+    python -m smishlens.pool_experiments --only E3,E4,E6
+    python -m smishlens.pool_experiments --only E5,E3,E4,E6 --models dummy,mnb,cnb,lr,svm
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from joblib import Parallel, delayed
 from sklearn.dummy import DummyClassifier
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import average_precision_score
 from sklearn.model_selection import StratifiedKFold, cross_val_predict
 from sklearn.naive_bayes import ComplementNB, MultinomialNB
 from sklearn.pipeline import Pipeline
 from sklearn.svm import LinearSVC
 
-from smishlens.evaluate import metrics_at, ppv, threshold_for_fpr
+from smishlens.evaluate import cost_operating_point, metrics_at, ppv, threshold_for_fpr
 from smishlens.features import build_features
-from smishlens.pool import BOTH_CLASSES  # single source of truth for fold kinds
-from smishlens.probes import shortcut_report
+from smishlens.pool import BOTH_CLASSES, HAM_ONLY_SOURCES
+from smishlens.probes import _cv_auc, format_features, shortcut_report
 
 ROOT = Path(__file__).resolve().parents[2]
 POOL_DIR = ROOT / "data" / "processed" / "modern"
 UCI_DIR = ROOT / "data" / "processed" / "uci"
+GOLD = ROOT / "data" / "gold_holdout.csv"
+RESULTS = ROOT / "reports" / "results"
+LOG = ROOT / "reports" / "verification_log.md"
+
 SEED = 42
 MAX_FPR = 0.01
 PREVALENCES = (0.05, 0.10, 0.20)
 RECALL_ONLY = ("imc25", "smishtank")
+FPR_ONLY = HAM_ONLY_SOURCES
+FPR_SOURCES = BOTH_CLASSES
+HELD_OUT = (*BOTH_CLASSES, *RECALL_ONLY, *FPR_ONLY)
+DEFAULT_MODELS = ("dummy", "mnb", "cnb", "lr", "svm")
+
+NOTE = (
+    "pool prevalence is positive-heavy; IMC'25 dominates the rows and has only "
+    "3 ham, so no pool-level accuracy or F1 is a headline; FPR is reported on "
+    "the both-class sources (mishra, moz) and separately on the exais ham-only "
+    "fold; imc25 and smishtank report recall only; exais never enters a "
+    "both-class macro"
+)
 
 
 def _est(name: str):
@@ -61,13 +78,6 @@ def _est(name: str):
         return LogisticRegression(C=1.0, max_iter=2000, class_weight="balanced", random_state=SEED)
     if name == "svm":
         return LinearSVC(C=0.5, class_weight="balanced", dual="auto", random_state=SEED)
-    if name == "rf":
-        return RandomForestClassifier(
-            n_estimators=300,
-            class_weight="balanced_subsample",
-            n_jobs=-1,
-            random_state=SEED,
-        )
     raise ValueError(f"unknown model {name!r}")
 
 
@@ -87,41 +97,52 @@ def load_uci_train() -> pd.DataFrame:
     return pd.read_csv(UCI_DIR / "train.csv")
 
 
-def source_weights(train: pd.DataFrame) -> np.ndarray:
-    """1 / (rows of that source and class), rescaled to mean 1.
+def load_gold() -> pd.DataFrame:
+    gold = pd.read_csv(GOLD, dtype=str, keep_default_na=False)
+    gold["y3"] = gold["label"].str.strip().str.lower()
+    gold["y"] = (gold["y3"] != "ham").astype(int)
+    return gold
 
-    Each (source, label) cell contributes the same total weight, so a 24k-row
-    positives-only source cannot drown the ham sources. No rows are dropped.
+
+def source_weights(train: pd.DataFrame) -> np.ndarray:
+    """Weight every source equally, so IMC'25's 15,657 rows cannot dominate.
+
+    Weighting by source and class was rejected: IMC'25 has three ham rows in
+    train, so that cell would carry a 754x per-row weight and the arm would
+    measure three rows. Weighting by source only keeps the knob honest.
     """
-    cells = train.groupby(["source", "y"])["text"].transform("size")
-    w = 1.0 / cells.to_numpy(dtype=float)
+    counts = train.groupby("source")["text"].transform("size")
+    w = 1.0 / counts.to_numpy(dtype=float)
     return w / w.mean()
 
 
-def _scores(y, p, tau) -> dict[str, float]:
-    m = metrics_at(y, p, tau)
-    out = {"n_pos": m["n_pos"], "n_neg": m["n_neg"], "recall": m["recall"]}
-    if m["n_neg"] > 0:
-        out["fpr"] = m["fpr"]
-        out["pr_auc"] = m["pr_auc"]
-        for prev in PREVALENCES:
-            out[f"ppv_{int(prev * 100)}pct"] = ppv(m["recall"], m["fpr"], prev)
-    return out
+def mode_for(source: str) -> str:
+    """One class only where the source only has one class.
+
+    ``exais`` is ham-only by construction: its positives are dropped before
+    dedup, so it can only report a false-positive rate and must never enter a
+    both-class macro.
+    """
+    if source in RECALL_ONLY:
+        return "recall_only"
+    if source in FPR_ONLY:
+        return "fpr_only"
+    return "both"
+
+
+def _decision(pipe: Pipeline, texts) -> np.ndarray:
+    if hasattr(pipe, "predict_proba"):
+        return pipe.predict_proba(texts)[:, 1]
+    return pipe.decision_function(texts)
 
 
 def _method(pipe: Pipeline) -> str:
     return "predict_proba" if hasattr(pipe, "predict_proba") else "decision_function"
 
 
-def _decision(pipe: Pipeline, texts) -> np.ndarray:
-    """Probability, or the decision value when the estimator has no proba."""
-    if hasattr(pipe, "predict_proba"):
-        return pipe.predict_proba(texts)[:, 1]
-    return pipe.decision_function(texts)
-
-
-def fit_threshold(train: pd.DataFrame, name: str, weights: np.ndarray | None = None):
-    """Threshold from out-of-fold scores on the training rows only."""
+def oof_scores(
+    train: pd.DataFrame, name: str, weights: np.ndarray | None = None, n_jobs: int = 1
+) -> np.ndarray:
     pipe = pipe_for(name)
     params = {} if weights is None else {"clf__sample_weight": weights}
     oof = cross_val_predict(
@@ -131,210 +152,630 @@ def fit_threshold(train: pd.DataFrame, name: str, weights: np.ndarray | None = N
         method=_method(pipe),
         cv=StratifiedKFold(5, shuffle=True, random_state=SEED),
         params=params,
-        n_jobs=1,
+        n_jobs=n_jobs,
     )
-    if oof.ndim == 2:
-        oof = oof[:, 1]
-    return float(threshold_for_fpr(train["y"].values, oof, MAX_FPR)[0])
+    return oof[:, 1] if oof.ndim == 2 else oof
 
 
-def score_source(
-    train: pd.DataFrame,
-    test: pd.DataFrame,
-    name: str,
-    weights: np.ndarray | None = None,
-) -> tuple[dict[str, float], float]:
-    """Fit on ``train``, freeze tau on its OOF, score ``test`` once."""
-    tau = fit_threshold(train, name, weights)
-    pipe = pipe_for(name)
-    params = {} if weights is None else {"clf__sample_weight": weights}
-    pipe.fit(train["text"], train["y"], **params)
-    p = _decision(pipe, test["text"])
-    return _scores(test["y"].values, p, tau), tau
+def oof_macro_pr_auc(train: pd.DataFrame, oof: np.ndarray) -> float:
+    """Macro PR-AUC over both-class sources, on train OOF scores only."""
+    values = []
+    for src in BOTH_CLASSES:
+        mask = (train["source"] == src).to_numpy()
+        y = train.loc[mask, "y"].to_numpy()
+        if y.size and len(np.unique(y)) == 2:
+            values.append(float(average_precision_score(y, oof[mask])))
+    return float(np.mean(values)) if values else float("nan")
 
 
-def _macro(rows: pd.DataFrame) -> dict[str, float]:
-    both = rows[rows["mode"] == "both"]
-    out = {"n_folds": float(len(both))}
-    for key in ("recall", "fpr", "pr_auc", "ppv_5pct", "ppv_10pct", "ppv_20pct"):
-        if key in both and both[key].notna().any():
-            out[f"macro_{key}"] = float(both[key].mean())
+def _scores(y, p, tau: float, mode: str) -> dict:
+    """Metrics a fold's mode supports; never a metric the mode cannot estimate.
+
+    ``both`` reports recall, FPR, both AUCs and prevalence-adjusted PPV.
+    ``recall_only`` reports recall only. ``fpr_only`` (a ham-only source such as
+    ExAIS) reports FPR only. Keeping the keys disjoint is what stops a one-class
+    fold from being averaged into a both-class macro.
+    """
+    m = metrics_at(y, p, tau)
+    out = {"n_pos": m["n_pos"], "n_neg": m["n_neg"]}
+    if mode == "both":
+        out["recall"] = m["recall"]
+        out["fpr"] = m["fpr"]
+        out["pr_auc"] = m["pr_auc"]
+        out["roc_auc"] = m["roc_auc"]
+        for prev in PREVALENCES:
+            out[f"ppv_{int(prev * 100)}pct"] = ppv(m["recall"], m["fpr"], prev)
+    elif mode == "recall_only":
+        out["recall"] = m["recall"]
+    elif mode == "fpr_only":
+        out["fpr"] = m["fpr"]
+    else:
+        raise ValueError(f"unknown mode {mode!r}")
     return out
 
 
-def run_e5(frame: pd.DataFrame, min_per_class: int = 20) -> pd.DataFrame:
-    report = shortcut_report(frame, min_per_class=min_per_class)
-    rows = [{"source": "pooled_for_reference", "format_only_auc": report["format_only_auc"],
-             "length_only_auc": report["length_only_auc"]}]
-    for src, vals in report["by_source"].items():
-        rows.append({"source": src, **vals})
-    rows.append(
-        {
-            "source": "macro_over_sources",
-            "format_only_auc": float(np.mean([v["format_only_auc"] for v in report["by_source"].values()])),
-            "length_only_auc": float(np.mean([v["length_only_auc"] for v in report["by_source"].values()])),
-        }
-    )
-    rows.append(
-        {
-            "source": "source_identifiability",
-            "format_only_auc": report["source_id_acc_from_format"],
-            "length_only_auc": report["source_id_chance"],
-        }
-    )
-    return pd.DataFrame(rows)
+def evaluate(train, test, name, weights=None) -> dict:
+    """Fit once, freeze both thresholds on train OOF, score test once."""
+    oof = oof_scores(train, name, weights)
+    tau = float(threshold_for_fpr(train["y"].to_numpy(), oof, MAX_FPR)[0])
+    cost = cost_operating_point(train["y"].to_numpy(), oof, fp_cost=10.0, fn_cost=1.0)
+    params = {} if weights is None else {"clf__sample_weight": weights}
+    pipe = pipe_for(name).fit(train["text"], train["y"], **params)
+    p = _decision(pipe, test["text"])
+    return {
+        "tau": tau,
+        "cost_tau": float(cost["tau"]),
+        "oof_macro_pr_auc": oof_macro_pr_auc(train, oof),
+        "p": p,
+        "pipe": pipe,
+    }
 
 
-def run_e3(frame: pd.DataFrame, models: list[str]) -> pd.DataFrame:
+def _row(base: dict, mode: str, y, p, tau, cost_tau) -> dict:
+    row = {**base, "mode": mode, "tau": tau, "cost_tau": cost_tau}
+    row.update(_scores(y, p, tau, mode))
+    cost = _scores(y, p, cost_tau, mode)
+    if "recall" in cost:
+        row["recall_cost"] = cost["recall"]
+    if "fpr" in cost:
+        row["fpr_cost"] = cost["fpr"]
+    return row
+
+
+def _macro(rows: list[dict]) -> dict:
+    """Unweighted mean over both-class rows only, with the fold count beside it.
+
+    ``fpr_only`` and ``recall_only`` rows are excluded here, not merely absent
+    from the metric keys: a source that cannot estimate recall must not silently
+    contribute a zero to a recall average.
+    """
+    both = [r for r in rows if r["mode"] == "both"]
+    out = {"n_folds": len(both)}
+    for key in ("recall", "fpr", "pr_auc", "roc_auc", "ppv_5pct", "ppv_10pct", "ppv_20pct"):
+        values = [r[key] for r in both if key in r and r[key] == r[key]]
+        if values:
+            out[f"macro_{key}"] = float(np.mean(values))
+    return out
+
+
+# --- cached matrices (E6 onwards) -----------------------------------------
+
+
+class FoldMatrices:
+    """One fold's features, vectorised once and shared by every model.
+
+    The vectoriser is fitted on that fold's TRAIN rows only, so the held-out
+    source contributes no vocabulary. The five CV splits used to estimate the
+    threshold then index into the cached matrix instead of re-vectorising.
+    Measured cost of that choice versus refitting inside each CV split: same
+    vocabulary, bitwise-identical test scores, threshold shifts by ~0.02 on
+    decision-function scores. See the log entry.
+    """
+
+    def __init__(self, feats, X, y, source, splits, X_test=None):
+        self.feats = feats
+        self.X = X
+        self.y = y
+        self.source = source
+        self.splits = splits
+        self.X_test = X_test
+
+
+def build_fold_matrices(train: pd.DataFrame, test: pd.DataFrame | None = None) -> FoldMatrices:
+    feats = build_features()
+    X = feats.fit_transform(train["text"])
+    y = train["y"].to_numpy()
+    splits = list(
+        StratifiedKFold(5, shuffle=True, random_state=SEED).split(np.zeros(len(y)), y)
+    )
+    X_test = feats.transform(test["text"]) if test is not None else None
+    return FoldMatrices(feats, X, y, train["source"].to_numpy(), splits, X_test)
+
+
+def transform_with(mats: FoldMatrices, texts):
+    return mats.feats.transform(texts)
+
+
+def _score_est(est, X) -> np.ndarray:
+    if hasattr(est, "predict_proba"):
+        return est.predict_proba(X)[:, 1]
+    return est.decision_function(X)
+
+
+def oof_cached(mats: FoldMatrices, name: str, weights: np.ndarray | None = None) -> np.ndarray:
+    oof = np.empty(len(mats.y), dtype=float)
+    for tr, va in mats.splits:
+        est = _est(name)
+        kw = {} if weights is None else {"sample_weight": weights[tr]}
+        est.fit(mats.X[tr], mats.y[tr], **kw)
+        oof[va] = _score_est(est, mats.X[va])
+    return oof
+
+
+def evaluate_cached(mats: FoldMatrices, name: str, weights: np.ndarray | None = None) -> dict:
+    """Same contract as ``evaluate`` but on pre-vectorised matrices."""
+    oof = oof_cached(mats, name, weights)
+    tau = float(threshold_for_fpr(mats.y, oof, MAX_FPR)[0])
+    cost = cost_operating_point(mats.y, oof, fp_cost=10.0, fn_cost=1.0)
+    est = _est(name)
+    kw = {} if weights is None else {"sample_weight": weights}
+    est.fit(mats.X, mats.y, **kw)
+    p = _score_est(est, mats.X_test)
+    return {
+        "tau": tau,
+        "cost_tau": float(cost["tau"]),
+        "oof_macro_pr_auc": _macro_pr_auc(mats, oof),
+        "p": p,
+        "est": est,
+    }
+
+
+def _macro_pr_auc(mats: FoldMatrices, oof: np.ndarray) -> float:
+    values = []
+    for src in BOTH_CLASSES:
+        mask = mats.source == src
+        y = mats.y[mask]
+        if y.size and len(np.unique(y)) == 2:
+            values.append(float(average_precision_score(y, oof[mask])))
+    return float(np.mean(values)) if values else float("nan")
+
+
+# --- E5 -------------------------------------------------------------------
+
+
+def run_e5(frame: pd.DataFrame, min_per_class: int = 20) -> dict:
+    report = shortcut_report(frame, min_per_class=min_per_class, fpr_only=FPR_ONLY)
+    feats = format_features(frame["text"])
+    # Keep the IMC'25-vs-rest probe on the same row set as the pooled class
+    # AUC, so the pre-ExAIS number stays comparable. ExAIS gets its own probe.
+    class_rows = ~frame["source"].isin(FPR_ONLY).to_numpy()
+    is_imc = ((frame["source"] == "imc25") & class_rows).to_numpy()
+    imc_auc = _cv_auc(feats.loc[class_rows].reset_index(drop=True), is_imc[class_rows].astype(int))
+    is_exais = (frame["source"].isin(FPR_ONLY)).to_numpy()
+    exais_auc = _cv_auc(feats, is_exais.astype(int)) if is_exais.any() else float("nan")
+    return {
+        "note": NOTE,
+        "scope": "whole frozen pool (train+cal+test); descriptive probe of the data, no model is selected and no threshold is set here",
+        "n_rows": int(len(frame)),
+        "format_only_auc_pooled": report["format_only_auc"],
+        "length_only_auc_pooled": report["length_only_auc"],
+        "class_auc_scope": report["class_auc_scope"],
+        "by_source": report["by_source"],
+        "fpr_only": report["fpr_only"],
+        "source_id_acc_from_format": report["source_id_acc_from_format"],
+        "source_id_chance": report["source_id_chance"],
+        "source_id_sources": report["source_id_sources"],
+        "imc25_vs_rest_auc_from_format": imc_auc,
+        "exais_vs_rest_auc_from_format": exais_auc,
+        "imc25_row_share": float((frame["source"] == "imc25").mean()),
+        "exais_row_share": float(is_exais.mean()),
+    }
+
+
+# --- selection (train only) -----------------------------------------------
+
+
+SELECTION_RULE = (
+    "Highest train-split out-of-fold macro PR-AUC over the two both-class sources "
+    "(mishra, moz). Tie-break, on those same two sources only: lower train-OOF FPR "
+    "at the OOF-fixed 1% threshold, then higher train-OOF recall. Test-split and "
+    "LOSO numbers are not inputs; fpr_only sources are never inputs."
+)
+
+
+def run_selection(frame: pd.DataFrame, models: list[str]) -> dict:
+    """Choose the headline from train-split OOF evidence only.
+
+    Same estimator, same five stratified folds and same OOF-fixed threshold as
+    E3, so the pick matches ``e3_pool.json``. No test row and no LOSO number is
+    read here.
+    """
     train = frame[frame["split"] == "train"]
-    test = frame[frame["split"] == "test"].reset_index(drop=True)
+    y = train["y"].to_numpy()
+    # Selection and its tie-break read the two both-class sources only. The
+    # threshold itself is frozen on all train rows, because ExAIS ham is real
+    # negative evidence for the operating point; it just cannot vote on which
+    # model wins.
+    both_mask = train["source"].isin(BOTH_CLASSES).to_numpy()
     rows = []
     for name in models:
-        tau = fit_threshold(train, name)
-        pipe = pipe_for(name).fit(train["text"], train["y"])
-        p = _decision(pipe, test["text"])
+        oof = oof_scores(train, name)
+        tau, _, _ = threshold_for_fpr(y, oof, MAX_FPR)
+        cost = cost_operating_point(y, oof, fp_cost=10.0, fn_cost=1.0)
+        overall = metrics_at(y[both_mask], oof[both_mask], tau)
+        per_source = {}
+        for src in BOTH_CLASSES:
+            mask = (train["source"] == src).to_numpy()
+            m = metrics_at(y[mask], oof[mask], tau)
+            per_source[src] = {
+                "n_pos": m["n_pos"],
+                "n_neg": m["n_neg"],
+                "recall": m["recall"],
+                "fpr": m["fpr"],
+                "pr_auc": m["pr_auc"],
+            }
+        rows.append(
+            {
+                "model": name,
+                "oof_macro_pr_auc": oof_macro_pr_auc(train, oof),
+                "oof_tau": tau,
+                "oof_fpr": overall["fpr"],
+                "oof_recall": overall["recall"],
+                "oof_cost_tau": float(cost["tau"]),
+                "oof_by_source": per_source,
+            }
+        )
+
+    ranked = sorted(rows, key=lambda r: (-r["oof_macro_pr_auc"], r["oof_fpr"], -r["oof_recall"]))
+    return {
+        "note": NOTE,
+        "rule": SELECTION_RULE,
+        "evidence": "train split only, 5-fold OOF at seed 42; test split and LOSO folds untouched",
+        "n_train": int(len(train)),
+        "n_train_both_classes": int(both_mask.sum()),
+        "fpr_only_sources_excluded_from_selection": list(FPR_ONLY),
+        "ranked": ranked,
+        "selected_model": ranked[0]["model"],
+        "not_inputs": ["pool test split", "LOSO folds", "gold holdout"],
+    }
+
+
+# --- E3 -------------------------------------------------------------------
+
+
+def run_e3(frame: pd.DataFrame, models: list[str]) -> tuple[dict, str]:
+    train = frame[frame["split"] == "train"]
+    test = frame[frame["split"] == "test"].reset_index(drop=True)
+    rows: list[dict] = []
+    selection: list[tuple[float, str]] = []
+    for name in models:
+        res = evaluate(train, test, name)
+        selection.append((res["oof_macro_pr_auc"], name))
+        block: list[dict] = []
         for src in sorted(test["source"].unique()):
             mask = (test["source"] == src).to_numpy()
-            scores = _scores(test.loc[mask, "y"].values, p[mask], tau)
-            mode = "both" if scores["n_neg"] > 0 else "recall_only"
-            rows.append({"experiment": "E3", "model": name, "source": src, "mode": mode,
-                         "tau": tau, **scores})
-        block = pd.DataFrame(rows)
-        block = block[(block["experiment"] == "E3") & (block["model"] == name)]
-        rows.append({"experiment": "E3", "model": name, "source": "macro",
-                     "mode": "macro", **_macro(block)})
-    return pd.DataFrame(rows)
+            block.append(
+                _row(
+                    {"experiment": "E3", "model": name, "source": src},
+                    mode_for(src),
+                    test.loc[mask, "y"].to_numpy(),
+                    res["p"][mask],
+                    res["tau"],
+                    res["cost_tau"],
+                )
+            )
+        rows.extend(block)
+        rows.append(
+            {
+                "experiment": "E3",
+                "model": name,
+                "source": "macro",
+                "mode": "macro",
+                **_macro(block),
+            }
+        )
+    selection.sort(reverse=True)
+    best = selection[0][1]
+    prevalence = float(test["y"].mean())
+    payload = {
+        "note": NOTE,
+        "selection_rule": "max train-OOF macro PR-AUC over moz and mishra; fpr_only sources never enter the macro",
+        "selection": [{"model": m, "oof_macro_pr_auc": v} for v, m in selection],
+        "selected_model": best,
+        "sources": sorted(test["source"].unique().tolist()),
+        "fpr_only_sources": list(FPR_ONLY),
+        # "Always spam" is not a result. It is here so the base rate is visible
+        # next to every other row and cannot be mistaken for skill.
+        "base_rate": {
+            "pool_test_rows": int(len(test)),
+            "pool_test_prevalence": prevalence,
+            "always_spam": {
+                "recall": 1.0,
+                "fpr": 1.0,
+                "precision": prevalence,
+                "accuracy": prevalence,
+            },
+            "why": f"shown only to make the {prevalence:.3f} pool base rate visible; never a headline",
+        },
+        "rows": rows,
+    }
+    return payload, best
 
 
-def _fold_frame(frame: pd.DataFrame, held: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+# --- E4 -------------------------------------------------------------------
+
+
+def _fold(frame: pd.DataFrame, held: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     train = frame[(frame["split"] == "train") & (frame["source"] != held)]
     test = frame[frame["source"] == held]
     return train, test
 
 
-def score_with(pipe: Pipeline, tau: float, test: pd.DataFrame) -> dict[str, float]:
-    """Score a pre-fitted model at a frozen threshold."""
-    p = _decision(pipe, test["text"])
-    return _scores(test["y"].values, p, tau)
+def run_e4(frame: pd.DataFrame, models: list[str]) -> dict:
+    rows: list[dict] = []
+    for name in models:
+        start = len(rows)
+        for held in HELD_OUT:
+            train, test = _fold(frame, held)
+            res = evaluate(train, test, name)
+            rows.append(
+                _row(
+                    {"experiment": "E4", "model": name, "source": held, "n_train": len(train)},
+                    mode_for(held),
+                    test["y"].to_numpy(),
+                    res["p"],
+                    res["tau"],
+                    res["cost_tau"],
+                )
+            )
+        rows.append(
+            {
+                "experiment": "E4",
+                "model": name,
+                "source": "macro",
+                "mode": "macro",
+                **_macro(rows[start:]),
+            }
+        )
+    return {"note": NOTE, "rows": rows}
 
 
-def run_e4(frame: pd.DataFrame, models: list[str]) -> pd.DataFrame:
+# --- E6 -------------------------------------------------------------------
+
+
+def _e6_fold(models, held, frame, uci) -> list[dict]:
+    """All models and both pool arms for one held-out source.
+
+    Runs in its own process, so it rebuilds the two vectorisers it needs. The
+    fold cache is built once and shared by every model and both arms, which is
+    the whole point: the vectoriser costs 7.5 s and a fit costs 0.2-0.4 s.
+    """
+    pool_train, test = _fold(frame, held)
+    uci_mats = build_fold_matrices(uci)
+    mats = build_fold_matrices(pool_train, test)
+    mode = mode_for(held)
+    y = test["y"].to_numpy()
+    weights = source_weights(pool_train)
     rows = []
     for name in models:
-        for held in (*BOTH_CLASSES, *RECALL_ONLY):
-            train, test = _fold_frame(frame, held)
-            scores, tau = score_source(train, test, name)
-            mode = "both" if scores["n_neg"] > 0 else "recall_only"
-            rows.append({"experiment": "E4", "model": name, "source": held, "mode": mode,
-                         "n_train": len(train), "tau": tau, **scores})
-        block = pd.DataFrame(rows)
-        block = block[(block["experiment"] == "E4") & (block["model"] == name)]
-        rows.append({"experiment": "E4", "model": name, "source": "macro",
-                     "mode": "macro", **_macro(block)})
-    return pd.DataFrame(rows)
+        oof = oof_cached(uci_mats, name)
+        tau = float(threshold_for_fpr(uci_mats.y, oof, MAX_FPR)[0])
+        cost_tau = float(cost_operating_point(uci_mats.y, oof, fp_cost=10.0, fn_cost=1.0)["tau"])
+        est = _est(name).fit(uci_mats.X, uci_mats.y)
+        p = _score_est(est, transform_with(uci_mats, test["text"]))
+        rows.append(
+            _row(
+                {"experiment": "E6", "model": name, "arm": "uci_only",
+                 "source": held, "n_train": len(uci)},
+                mode, y, p, tau, cost_tau,
+            )
+        )
+        for arm, w in (("pool_unweighted", None), ("pool_source_weighted", weights)):
+            res = evaluate_cached(mats, name, w)
+            rows.append(
+                _row(
+                    {"experiment": "E6", "model": name, "arm": arm,
+                     "source": held, "n_train": len(pool_train)},
+                    mode, y, res["p"], res["tau"], res["cost_tau"],
+                )
+            )
+    return rows
 
 
-def run_e6(frame: pd.DataFrame, uci: pd.DataFrame, models: list[str]) -> pd.DataFrame:
-    rows = []
-    for name in models:
-        # The UCI-only arm does not depend on the fold: fit and freeze it once.
-        tau_uci = fit_threshold(uci, name)
-        pipe_uci = pipe_for(name).fit(uci["text"], uci["y"])
-        for held in (*BOTH_CLASSES, *RECALL_ONLY):
-            pool_train, test = _fold_frame(frame, held)
-            scores = score_with(pipe_uci, tau_uci, test)
-            mode = "both" if scores["n_neg"] > 0 else "recall_only"
-            rows.append({"experiment": "E6", "model": name, "arm": "uci_only",
-                         "source": held, "mode": mode, "n_train": len(uci),
-                         "tau": tau_uci, **scores})
-            for arm, weights in (
-                ("pool_unweighted", None),
-                ("pool_source_weighted", source_weights(pool_train)),
-            ):
-                scores, tau = score_source(pool_train, test, name, weights)
-                mode = "both" if scores["n_neg"] > 0 else "recall_only"
-                rows.append({"experiment": "E6", "model": name, "arm": arm,
-                             "source": held, "mode": mode, "n_train": len(pool_train),
-                             "tau": tau, **scores})
-        block = pd.DataFrame(rows)
-        for arm in ("uci_only", "pool_unweighted", "pool_source_weighted"):
-            part = block[(block["experiment"] == "E6") & (block["model"] == name)
-                         & (block["arm"] == arm) & (block["source"] != "macro")]
-            rows.append({"experiment": "E6", "model": name, "arm": arm,
-                         "source": "macro", "mode": "macro", **_macro(part)})
-    return pd.DataFrame(rows)
+def run_e6(
+    frame: pd.DataFrame,
+    uci: pd.DataFrame,
+    models: list[str],
+    headline: str,
+    n_jobs: int = 6,
+    with_gold: bool = True,
+) -> dict:
+    """UCI-only vs two pool arms on the same LOSO folds, then gold once.
 
-
-def e6_delta(table: pd.DataFrame) -> pd.DataFrame:
-    """Paired gap per fold: modern pool minus UCI-only (recall and PR-AUC)."""
-    keys = ["model", "source"]
-    wide = table[table["mode"] != "macro"].pivot_table(
-        index=keys, columns="arm", values=["recall", "pr_auc"], aggfunc="first"
+    Parallelism is over folds, not over (model, fold). Two reasons, both
+    measured: threads share liblinear's RNG state and shifted LinearSVC scores
+    by ~1e-6 between identical runs, so the workers have to be processes; and a
+    process per (model, fold) would refit the 7.5 s vectoriser five times for
+    the same wall clock. One process per fold keeps the cache shared by all
+    five models and both arms.
+    """
+    folds = [h for h in HELD_OUT]
+    per_fold = Parallel(n_jobs=min(n_jobs, len(folds)), prefer="processes")(
+        delayed(_e6_fold)(models, held, frame, uci) for held in folds
     )
-    rows = []
-    for (model, source), row in wide.iterrows():
-        out = {"model": model, "source": source}
-        for metric in ("recall", "pr_auc"):
-            uci = row.get((metric, "uci_only"), float("nan"))
+    by_fold = dict(zip(folds, per_fold, strict=True))
+
+    rows: list[dict] = []
+    for name in models:
+        block = [r for held in folds for r in by_fold[held] if r["model"] == name]
+        rows.extend(block)
+        for arm in ("uci_only", "pool_unweighted", "pool_source_weighted"):
+            part = [r for r in block if r["arm"] == arm]
+            rows.append(
+                {"experiment": "E6", "model": name, "arm": arm,
+                 "source": "macro", "mode": "macro", **_macro(part)}
+            )
+
+    paired = _paired(rows)
+    gold = score_gold(frame, uci, headline) if with_gold else None
+    return {"note": NOTE, "rows": rows, "paired": paired, "gold": gold}
+
+
+def _paired(rows: list[dict]) -> list[dict]:
+    out = []
+    by_key = {(r["model"], r.get("arm"), r["source"]): r for r in rows if r["mode"] != "macro"}
+    for model in sorted({r["model"] for r in rows}):
+        for src in HELD_OUT:
+            base = by_key.get((model, "uci_only", src))
+            if not base:
+                continue
+            entry = {"model": model, "source": src, "mode": base["mode"]}
             for arm in ("pool_unweighted", "pool_source_weighted"):
-                out[f"{arm}_{metric}"] = row.get((metric, arm), float("nan"))
-                out[f"delta_{arm}_{metric}"] = row.get((metric, arm), float("nan")) - uci
-        rows.append(out)
-    return pd.DataFrame(rows)
+                other = by_key.get((model, arm, src))
+                if not other:
+                    continue
+                for metric in ("recall", "fpr", "pr_auc"):
+                    if metric in base and metric in other:
+                        entry[f"{arm}_{metric}"] = other[metric]
+                        entry[f"delta_{arm}_{metric}"] = other[metric] - base[metric]
+            out.append(entry)
+    return out
 
 
-def dry_run_sample(frame: pd.DataFrame, n: int) -> pd.DataFrame:
-    """At most ``n`` rows, spread across sources; keeps the frozen split labels."""
-    per = max(n // frame["source"].nunique(), 1)
-    parts = []
-    for _, group in frame.groupby("source"):
-        parts.append(group.sample(min(per, len(group)), random_state=SEED))
-    return pd.concat(parts, ignore_index=True).head(n)
+# --- gold (once) ----------------------------------------------------------
+
+
+def _group_rates(gold: pd.DataFrame, p: np.ndarray, tau: float, column: str) -> list[dict]:
+    out = []
+    for value, part in gold.groupby(column):
+        idx = part.index.to_numpy()
+        y = part["y"].to_numpy()
+        pred = p[idx] >= tau
+        pos = int((y == 1).sum())
+        neg = int((y == 0).sum())
+        out.append(
+            {
+                column: value,
+                "n": int(len(part)),
+                "n_pos": pos,
+                "n_neg": neg,
+                "recall": float((pred & (y == 1)).sum() / pos) if pos else None,
+                "fpr": float((pred & (y == 0)).sum() / neg) if neg else None,
+            }
+        )
+    return out
+
+
+def score_gold(
+    frame: pd.DataFrame,
+    uci: pd.DataFrame,
+    models: str | list[str],
+    uci_mats: FoldMatrices | None = None,
+) -> dict:
+    """One pass over the synthetic gold file with frozen train-only models.
+
+    The headline and Dummy are scored together so the file is written once, and
+    the gold labels are read only after the model and its thresholds were fixed
+    from train-split evidence.
+    """
+    if isinstance(models, str):
+        models = [models]
+    gold = load_gold()
+    pool_train = frame[frame["split"] == "train"]
+    mats_by_arm = {
+        "uci_only": uci_mats or build_fold_matrices(uci),
+        "pool_unweighted": build_fold_matrices(pool_train),
+    }
+    y_gold = gold["y"].to_numpy()
+    out = {}
+    for model in models:
+        arms = {}
+        for arm, mats in mats_by_arm.items():
+            oof = oof_cached(mats, model)
+            tau = float(threshold_for_fpr(mats.y, oof, MAX_FPR)[0])
+            est = _est(model).fit(mats.X, mats.y)
+            p = _score_est(est, transform_with(mats, gold["text"]))
+            m = metrics_at(y_gold, p, tau)
+            arms[arm] = {
+                "model": model,
+                "tau": tau,
+                "n_train": int(len(mats.y)),
+                "n": int(len(gold)),
+                "n_pos": m["n_pos"],
+                "n_neg": m["n_neg"],
+                "recall": m["recall"],
+                "fpr": m["fpr"],
+                "pr_auc": m["pr_auc"],
+                "by_language": _group_rates(gold, p, tau, "language"),
+                "by_scam_type": _group_rates(gold, p, tau, "scam_type"),
+            }
+        out[model] = {"arms": arms}
+    return {
+        "synthetic": True,
+        "note": "fully synthetic gold file, written by Claude on the user's behalf; scored once, never used for tuning or selection",
+        "scored_once": True,
+        "models": out,
+    }
+
+
+# --- CLI ------------------------------------------------------------------
+
+
+def _json(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, default=str) + "\n")
+    print(f"wrote {path}")
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", default="E5,E3,E4,E6")
-    ap.add_argument("--models", default="svm", help="E4/E6 models (E3 uses the full list)")
-    ap.add_argument("--out", default=str(ROOT / "reports" / "results"))
-    ap.add_argument("--dry-run", type=int, default=0, metavar="N")
+    ap.add_argument("--models", default=",".join(DEFAULT_MODELS))
+    ap.add_argument("--headline", default=None, help="model for the gold pass; defaults to the E3 selection")
+    ap.add_argument("--n-jobs", type=int, default=6, help="threads for E6, parallel over (model, fold)")
+    ap.add_argument(
+        "--skip-gold",
+        action="store_true",
+        help="E6 without the gold pass; only for the n_jobs equivalence check, never for a result",
+    )
+    ap.add_argument("--out", default=str(RESULTS))
     args = ap.parse_args(argv)
 
     only = [x.strip().upper() for x in args.only.split(",") if x.strip()]
-    frame = load_pool()
-    if args.dry_run:
-        frame = dry_run_sample(frame, args.dry_run)
-        print(f"DRY RUN on {len(frame)} rows — no result files will be written")
-
+    models = [m.strip() for m in args.models.split(",") if m.strip()]
     out = Path(args.out)
-    tables: dict[str, pd.DataFrame] = {}
+    frame = load_pool()
 
     if "E5" in only:
-        tables["E5"] = run_e5(frame, min_per_class=5 if args.dry_run else 20)
-        print(tables["E5"].to_string(index=False))
-    if "E3" in only:
-        models = ["dummy", "mnb", "cnb", "lr", "svm", "rf"]
-        tables["E3"] = run_e3(frame, models)
-        print(tables["E3"].to_string(index=False))
-    if "E4" in only:
-        models = [m.strip() for m in args.models.split(",") if m.strip()]
-        tables["E4"] = run_e4(frame, models)
-        print(tables["E4"].to_string(index=False))
-    if "E6" in only:
-        models = [m.strip() for m in args.models.split(",") if m.strip()]
-        tables["E6"] = run_e6(frame, load_uci_train(), models)
-        tables["E6_delta"] = e6_delta(tables["E6"])
-        print(tables["E6"].to_string(index=False))
-        print(tables["E6_delta"].to_string(index=False))
+        e5 = run_e5(frame)
+        _json(out / "e5_shortcut.json", e5)
+        print(f"E5 pooled format AUC {e5['format_only_auc_pooled']:.3f} "
+              f"length {e5['length_only_auc_pooled']:.3f} "
+              f"imc25-vs-rest {e5['imc25_vs_rest_auc_from_format']:.3f}")
 
-    if args.dry_run:
-        print("dry run complete — nothing written")
+    headline = args.headline
+    if "SEL" in only:
+        sel = run_selection(frame, models)
+        _json(out / "e3_selection.json", sel)
+        print(f"selected {sel['selected_model']} by train-OOF macro PR-AUC")
+
+    if "E3" in only:
+        e3, headline = run_e3(frame, models)
+        _json(out / "e3_pool.json", e3)
+        print(f"E3 selected {headline} by train-OOF macro PR-AUC")
+    if headline is None:
+        # The headline is a written decision, not a fallback. e3_selection.json is
+        # produced from train-split OOF only, before any gold row is read.
+        for name in ("e3_selection.json", "e3_pool.json"):
+            previous = out / name
+            if previous.exists():
+                headline = json.loads(previous.read_text())["selected_model"]
+                print(f"E6 headline from {previous.name}: {headline}")
+                break
+        else:
+            raise SystemExit(
+                "no train-only selection found: run --only SEL first, "
+                "gold must never pick the model"
+            )
+
+    if "E4" in only:
+        _json(out / "e4_loso.json", run_e4(frame, models))
+
+    if "GOLD" in only:
+        # One pass, one write, immediately: nothing else runs before the file
+        # exists. The headline was fixed from train-split evidence in
+        # e3_selection.json before any gold row was read.
+        gold = score_gold(frame, load_uci_train(), [headline, "dummy"])
+        _json(out / "e6_gold.json", gold)
+        print(f"gold scored once for {', '.join(gold['models'])} (synthetic)")
         return 0
-    out.mkdir(parents=True, exist_ok=True)
-    for name, table in tables.items():
-        path = out / f"tier2_{name.lower()}.csv"
-        table.to_csv(path, index=False)
-        print(f"wrote {path}")
+
+    if "E6" in only:
+        e6 = run_e6(
+            frame, load_uci_train(), models, headline,
+            n_jobs=args.n_jobs, with_gold=False,
+        )
+        _json(out / "e6_paired.json", e6)
     return 0
 
 

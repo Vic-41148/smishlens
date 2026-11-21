@@ -162,8 +162,9 @@ def test_apply_audit_applies_binary_and_subtype_corrections(tmp_path, monkeypatc
     module = _apply_audit_module()
     captured = {}
 
-    def fake_build(label_overrides=None):
+    def fake_build(label_overrides=None, dedup_exclusions=None):
         captured["overrides"] = label_overrides
+        captured["exclusions"] = dedup_exclusions
         return {
             "audit": {
                 "dataset_sha256_16": "newhash",
@@ -252,7 +253,7 @@ def test_apply_audit_unnamed_source_still_blocks(tmp_path, monkeypatch):
 def test_apply_audit_skips_dropped_source(tmp_path, monkeypatch, capsys):
     review = _multi_review(
         tmp_path / "review.csv",
-        {"exais": (100, set(range(30)), ()), "moz": (100, set(), ())},
+        {"wspr": (100, set(range(30)), ()), "moz": (100, set(), ())},
     )
     module = _apply_audit_module()
     code = _run(
@@ -263,7 +264,7 @@ def test_apply_audit_skips_dropped_source(tmp_path, monkeypatch, capsys):
     )
     out = capsys.readouterr().out
     assert code == 0
-    assert "ignoring 100 review row(s) from exais" in out
+    assert "ignoring 100 review row(s) from wspr" in out
 
 
 def test_apply_audit_accepted_labels_kept_and_dropped_overrides_filtered(tmp_path, monkeypatch):
@@ -272,7 +273,7 @@ def test_apply_audit_accepted_labels_kept_and_dropped_overrides_filtered(tmp_pat
     review = _multi_review(
         tmp_path / "review.csv",
         {
-            "exais": (10, {0, 1}, ()),
+            "wspr": (10, {0, 1}, ()),
             "moz": (100, {0, 1}, ()),
             "mishra": (100, {0}, ()),
         },
@@ -283,8 +284,9 @@ def test_apply_audit_accepted_labels_kept_and_dropped_overrides_filtered(tmp_pat
     module = _apply_audit_module()
     captured = {}
 
-    def fake_build(label_overrides=None):
+    def fake_build(label_overrides=None, dedup_exclusions=None):
         captured["overrides"] = label_overrides
+        captured["exclusions"] = dedup_exclusions
         return {
             "audit": {
                 "dataset_sha256_16": "newhash",
@@ -306,7 +308,7 @@ def test_apply_audit_accepted_labels_kept_and_dropped_overrides_filtered(tmp_pat
     assert code == 0
     overrides = captured["overrides"]
     assert overrides == {"mishra-r0": "smish"}
-    assert not any(k.startswith(("exais-", "moz-")) for k in overrides)
+    assert not any(k.startswith(("wspr-", "moz-")) for k in overrides)
     written = json.loads((out / "label_overrides.json").read_text())
     assert written == {"mishra-r0": "smish"}
 
