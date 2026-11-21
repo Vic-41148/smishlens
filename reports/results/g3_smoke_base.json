@@ -1,0 +1,22 @@
+{
+  "model": "mmBERT-base",
+  "rows": 2000,
+  "epochs": 1,
+  "batch_size": 16,
+  "max_len": 128,
+  "dtype": "bfloat16",
+  "embeddings_frozen": true,
+  "params_total": 307531778,
+  "params_trainable": 110923778,
+  "gpu": "NVIDIA GeForce RTX 3050 6GB Laptop GPU",
+  "torch": "2.14.1+cu130",
+  "steps": 125,
+  "train_seconds": 23.45,
+  "median_s_per_step": 0.174,
+  "tokens_per_second": 2086,
+  "peak_vram_alloc_gib": 3.47,
+  "peak_vram_reserved_gib": 3.62,
+  "cpu_inference_100_messages_seconds": 3.33,
+  "cpu_ms_per_message": 33.31,
+  "source": "data/processed/uci/train.csv (UCI train only; test never read)"
+}

@@ -254,3 +254,50 @@ touched. The seeded `tau` differs from the reported one by 3.55e-7 absolute
 unseeded fit. No claim is made here about how many test decisions, if any, that
 difference would flip — that was not measured, and measuring it would mean scoring
 the test split again.
+
+## 2026-11-21 — G3: mmBERT fine-tune fits in 6 GB
+
+Environment: RTX 3050 6 GB Laptop GPU (sm_86), CUDA 13.0 UMD 13.5,
+torch 2.14.1+cu130, transformers 5.23.0, Python 3.14. The project venv shipped a
+CPU-only torch; it was replaced with the cu130 wheel so the gate could run at all.
+Both checkpoints were already in `models/`; nothing was downloaded for this test.
+
+Command (UCI **train** rows only, 2000-row sample, seed 42, 1 epoch, embeddings
+frozen, max_len 128, bf16 autocast, bs 16, lr 3e-5):
+
+```bash
+PYTHONPATH=src .venv/bin/python data/g3_smoke.py --model models/mmBERT-small
+PYTHONPATH=src .venv/bin/python data/g3_smoke.py --model models/mmBERT-base \
+  --out reports/results/g3_smoke_base.json
+```
+
+Numbers are quoted from `reports/results/g3_smoke.json` and
+`reports/results/g3_smoke_base.json`:
+
+| | mmBERT-small | mmBERT-base |
+|---|---|---|
+| parameters (trainable) | 140,642,306 (42,338,306) | 307,531,778 (110,923,778) |
+| steps (125 = 2000/16) | 125 | 125 |
+| median s/step | 0.079 | 0.174 |
+| train wall clock, 1 epoch | 11.09 s | 23.45 s |
+| tokens/s | 4,414 | 2,086 |
+| **peak VRAM allocated** | **1.76 GiB** | **3.47 GiB** |
+| peak VRAM reserved | 1.94 GiB | 3.62 GiB |
+| CPU inference, 100 messages | 1.28 s (12.84 ms/msg) | 3.33 s (33.31 ms/msg) |
+
+Both checkpoints are encoder-only: `AutoModelForSequenceClassification` reports
+the classification head as newly initialised, which is expected for fine-tuning.
+
+**Extrapolation.** At the measured throughput, at most 20,435 train rows (the
+frozen pool train split, `data_audit.json`; each LOSO train set is smaller
+because it excludes the held-out source) cost about 113 s/epoch for small and
+240 s for base, so a 3-epoch fit is roughly 6 min and 12 min. Five LOSO fits
+would be at most about 30 min (small) or 60 min (base) plus evaluation.
+Extrapolation uses UCI-train throughput; pool text lengths were not measured, so
+these are approximate, not bounds.
+
+**G3 verdict: pass.** Base peaks at 3.47 GiB allocated (3.62 GiB reserved) at
+bs 16 and max_len 128, leaving about 2.4 GiB of headroom on a 6 GB card, and it
+is 2.2x slower than small. Recommendation: mmBERT-base for the headline model
+and the final fit, mmBERT-small for the remaining LOSO folds (roadmap §7.10
+compute plan). Drop to bs 8 with accum 2 only if longer `max_len` runs OOM.
