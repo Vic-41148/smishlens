@@ -64,6 +64,7 @@ make test       # pytest
 make app        # Streamlit demo on http://localhost:8501
 make serve      # FastAPI on http://127.0.0.1:8000 (POST /classify, GET /health)
 make eda        # regenerate reports/figures/ and reports/eda.md
+make data       # fetch every Tier 2 source and rebuild the modern pool locally
 ```
 
 `make setup` and `make train` **never** touch the test split. `smishlens.final_eval` is a
@@ -77,7 +78,8 @@ src/smishlens/    library: data, normalise, features, models, calibrate, conform
                   policy, predict, train, final_eval, experiments, eda, loso, probes
 serve/api.py      FastAPI wrapper (no logic; reads artifacts/ via ARTIFACT_DIR)
 app/app.py        Streamlit demo, same code path as the API
-data/             download_data.py, audit_sources.py, build_uci_anchor.py, raw/ (ignored)
+data/             download_data.py, audit_sources.py, build_uci_anchor.py,
+                  build_modern_pool.py, cards/ (one DATA_CARD per source), raw/ (ignored)
 reports/          eda.md, error_analysis.md, verification_log.md, results/, figures/
 tests/            pytest suite (normaliser, data, pipeline, serving, conformal/policy)
 artifacts/        trained model + manifest (git-ignored; rebuilt by `make train`)

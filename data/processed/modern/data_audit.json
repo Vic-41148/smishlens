@@ -1,0 +1,270 @@
+{
+  "seed": 42,
+  "pool_sources": [
+    "imc25",
+    "mishra",
+    "exais",
+    "moz",
+    "smishtank"
+  ],
+  "ood_only_sources": [
+    "wspr",
+    "africa"
+  ],
+  "excluded_sources": {
+    "africa": "fully synthetic (is_synthetic=1 on every row); roadmap \u00a74.1 forbids synthetic rows in a headline test set",
+    "wspr": "68,029 recall-only phishing messages; kept as an OOD source so it cannot swamp the pool's class balance"
+  },
+  "dedup": {
+    "within": {
+      "rows_in": 48703,
+      "label_conflict_texts": 46,
+      "dropped_label_conflict": 198,
+      "dropped_exact_duplicate": 10467,
+      "dropped_normalised": 983,
+      "rows_out": 37055,
+      "per_source": {
+        "imc25": {
+          "rows_in": 33869,
+          "dropped_label_conflict": 0,
+          "dropped_exact_duplicate": 9106,
+          "dropped_normalised": 301,
+          "rows_out": 24462
+        },
+        "mishra": {
+          "rows_in": 5971,
+          "dropped_label_conflict": 0,
+          "dropped_exact_duplicate": 140,
+          "dropped_normalised": 107,
+          "rows_out": 5724
+        },
+        "exais": {
+          "rows_in": 5240,
+          "dropped_label_conflict": 190,
+          "dropped_exact_duplicate": 1208,
+          "dropped_normalised": 190,
+          "rows_out": 3652
+        },
+        "moz": {
+          "rows_in": 2561,
+          "dropped_label_conflict": 8,
+          "dropped_exact_duplicate": 3,
+          "dropped_normalised": 220,
+          "rows_out": 2330
+        },
+        "smishtank": {
+          "rows_in": 1062,
+          "dropped_label_conflict": 0,
+          "dropped_exact_duplicate": 10,
+          "dropped_normalised": 165,
+          "rows_out": 887
+        }
+      }
+    },
+    "vs_uci": {
+      "exact": 4879,
+      "near": 189,
+      "rows_out": 31987,
+      "per_source": {
+        "imc25": {
+          "rows_in": 24462,
+          "exact": 0,
+          "near": 0
+        },
+        "mishra": {
+          "rows_in": 5724,
+          "exact": 4876,
+          "near": 189
+        },
+        "exais": {
+          "rows_in": 3652,
+          "exact": 3,
+          "near": 0
+        },
+        "moz": {
+          "rows_in": 2330,
+          "exact": 0,
+          "near": 0
+        },
+        "smishtank": {
+          "rows_in": 887,
+          "exact": 0,
+          "near": 0
+        }
+      }
+    },
+    "cross_source": {
+      "imc25": {
+        "rows": 24462,
+        "dropped": 0
+      },
+      "mishra": {
+        "rows": 659,
+        "dropped": 2
+      },
+      "exais": {
+        "rows": 3649,
+        "dropped": 1
+      },
+      "moz": {
+        "rows": 2330,
+        "dropped": 0
+      },
+      "smishtank": {
+        "rows": 887,
+        "dropped": 53
+      }
+    }
+  },
+  "per_source_stages": {
+    "raw": {
+      "exais": 5240,
+      "imc25": 33869,
+      "mishra": 5971,
+      "moz": 2561,
+      "smishtank": 1062
+    },
+    "after_within_dedup": {
+      "exais": 3652,
+      "imc25": 24462,
+      "mishra": 5724,
+      "moz": 2330,
+      "smishtank": 887
+    },
+    "after_uci_overlap": {
+      "exais": 3649,
+      "imc25": 24462,
+      "mishra": 659,
+      "moz": 2330,
+      "smishtank": 887
+    },
+    "final": {
+      "exais": 3648,
+      "imc25": 24462,
+      "mishra": 657,
+      "moz": 2330,
+      "smishtank": 834
+    }
+  },
+  "per_source": {
+    "imc25": {
+      "rows": 24462,
+      "ham": 0,
+      "positives": 24462,
+      "languages": {
+        "english": 15391,
+        "spanish": 3245,
+        "dutch": 1570,
+        "french": 879,
+        "german": 590
+      },
+      "near_dup_dropped_vs_earlier_sources": 0
+    },
+    "mishra": {
+      "rows": 657,
+      "ham": 392,
+      "positives": 265,
+      "languages": {},
+      "near_dup_dropped_vs_earlier_sources": 2
+    },
+    "exais": {
+      "rows": 3648,
+      "ham": 2292,
+      "positives": 1356,
+      "languages": {
+        "en": 3648
+      },
+      "near_dup_dropped_vs_earlier_sources": 1
+    },
+    "moz": {
+      "rows": 2330,
+      "ham": 1784,
+      "positives": 546,
+      "languages": {
+        "pt": 2330
+      },
+      "near_dup_dropped_vs_earlier_sources": 0
+    },
+    "smishtank": {
+      "rows": 834,
+      "ham": 0,
+      "positives": 834,
+      "languages": {},
+      "near_dup_dropped_vs_earlier_sources": 53
+    }
+  },
+  "ood_sources": {
+    "wspr": {
+      "rows": 68029,
+      "positives": 68029,
+      "ham": 0,
+      "has_url": 66883,
+      "synthetic": false,
+      "languages": {}
+    },
+    "africa": {
+      "rows": 10000,
+      "positives": 5000,
+      "ham": 5000,
+      "has_url": 2938,
+      "synthetic": true,
+      "languages": {
+        "english": 2104,
+        "swahili": 1145,
+        "yoruba": 841,
+        "french": 825,
+        "hausa": 788
+      }
+    }
+  },
+  "splits": {
+    "train": {
+      "rows": 20435,
+      "positives": 17575,
+      "ham": 2860,
+      "prevalence": 0.860044,
+      "per_source": {
+        "imc25": 15655,
+        "exais": 2335,
+        "moz": 1491,
+        "smishtank": 534,
+        "mishra": 420
+      }
+    },
+    "cal": {
+      "rows": 5108,
+      "positives": 4393,
+      "ham": 715,
+      "prevalence": 0.860023,
+      "per_source": {
+        "imc25": 3913,
+        "exais": 584,
+        "moz": 372,
+        "smishtank": 133,
+        "mishra": 106
+      }
+    },
+    "test": {
+      "rows": 6388,
+      "positives": 5495,
+      "ham": 893,
+      "prevalence": 0.860207,
+      "per_source": {
+        "imc25": 4894,
+        "exais": 729,
+        "moz": 467,
+        "smishtank": 167,
+        "mishra": 131
+      }
+    }
+  },
+  "pool_rows": 31931,
+  "pool_prevalence": 0.860073,
+  "near_dup_threshold": 0.9,
+  "dataset_sha256_16": "4015672722968db6",
+  "notes": [
+    "Splits are stratified by (source, y) with seed 42 and are frozen; do not redraw.",
+    "Prevalence is far above field prevalence because the pool is positive-heavy by construction (IMC'25 is positives-only). Report PPV at realistic prevalence, never raw precision.",
+    "The split is committed only as a text-free manifest; processed text stays git-ignored for the unclear-licence sources."
+  ]
+}
