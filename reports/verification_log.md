@@ -1291,3 +1291,13 @@ Time-box: no arm exceeded 15 minutes. The slowest was `prevalence_05` at
 191.3 s, so every arm kept all three folds. F6 and F7 were skipped as optional
 because F1-F5 already took about 18 minutes in total; no F6/F7 result exists.
 No gold row was read or scored.
+
+## 2026-11-22 — deployment environment check
+
+`make deploy-env` builds a clean venv from `requirements.txt` only, moves the pool
+CSVs aside (restored byte-identically, sha256 checked), scores one fixed synthetic
+message under both the clean interpreter and the project `.venv`, runs the
+Streamlit AppTest, and smokes the Docker image. It writes
+`reports/results/deploy_env.json`; the generated section is
+"Deployment-environment check" in `docs/DEPLOYMENT.md`. No message text is read,
+printed or written.

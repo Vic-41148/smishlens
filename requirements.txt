@@ -1,15 +1,13 @@
-# Runtime dependencies for smishlens, pinned to the versions used for the
-# Tier 1 results in reports/results/. Python 3.11+.
-fastapi==0.165.0
-httpx==0.28.1
+# Runtime dependencies for the hosted app: app/app.py + smishlens.serve.
+# Streamlit Community Cloud reads THIS file at the repository root.
+# Exact pins, app-minimal: every line below is imported by the app/serve import
+# chain, except pyarrow, which streamlit itself imports for data serialisation.
+# Python 3.12 (the Community Cloud default). scikit-learn MUST equal the version
+# recorded in artifacts/serve/metadata.json or load_bundle() refuses the pickle.
 joblib==1.6.0
-matplotlib==3.11.2
 numpy==2.5.5
 pandas==2.3.3
 pyarrow==26.0.1
-pydantic==2.13.4
 scikit-learn==1.9.1
 scipy==1.18.1
-snowballstemmer==3.1.1
 streamlit==1.67.0
-uvicorn==0.52.4

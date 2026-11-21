@@ -24,6 +24,15 @@ GitHub repository. Public repository: code and docs only, no artifact.
   switched to public in the app settings.
 - **One private-repository app at a time.** Invited viewers sign in.
   - https://docs.streamlit.io/deploy/streamlit-community-cloud/share-your-app
+- **Python version.** Community Cloud supports released Python versions
+  that are still receiving security updates, and **defaults to 3.12**.
+  A version is chosen from the "Python version" dropdown in the
+  "Advanced settings" modal; an app on an unsupported version is
+  forcibly upgraded and may break. Do not assume 3.14 is selectable:
+  check the dropdown, and prefer 3.12, which is the default and the
+  version this bundle is verified against (`make deploy-env`).
+  - https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy#optional-configure-secrets-and-python-version
+  - https://docs.streamlit.io/deploy/streamlit-community-cloud/status#python-environments
 
 ### Self-host fallback
 
@@ -100,6 +109,29 @@ This does **not** clear the dataset licences for serving predictions,
 and it does not make the model weights open. Treat the private repo as
 the boundary: the artifact stays there, and the app is the only public
 surface.
+
+## Deployment-environment check
+
+Generated 2026-11-21T20:58:20+00:00 by `make deploy-env`. Every value below is read from `reports/results/deploy_env.json`.
+
+| check | result |
+|---|---|
+| clean-venv Python | 3.12.14 |
+| requirements file | `requirements.txt` (7 pins) |
+| resolved packages | `joblib==1.6.0`, `numpy==2.5.5`, `pandas==2.3.3`, `pyarrow==26.0.1`, `scikit-learn==1.9.1`, `scipy==1.18.1`, `streamlit==1.67.0` |
+| artifact sha256 | `eeca262df368dcabd58d803038a876ca510c549b9947332a3cb2d88b96a28843` |
+| matches `MANIFEST.sha256` | yes |
+| app import path | yes |
+| bundle loads | yes |
+| AppTest (notice + score) | yes |
+| pool CSVs absent during check | yes |
+| CSVs restored byte-identical | yes |
+| cross-version score (3.14.10 vs 3.12.14) | yes, max |Δ| 0.000000000000 (tolerance 0.000000001000) |
+| Docker image | `python:3.12-slim`, 1090.2 MB, health yes, no pool data yes, removed yes |
+
+The synthetic probe is a fixed invented string; its text is never
+printed, logged or written. Only its band, conformal set and calibrated
+score are recorded.
 
 ## Procedure (run these yourself; this repo has no remotes)
 

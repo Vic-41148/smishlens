@@ -155,8 +155,9 @@ while macro PR-AUC fell by at most 0.02. **No arm is a fix.**
 
 ## 7. The demo app
 
-`streamlit run app/app.py` (see `requirements-app.txt` for the minimal
-install). The app shows:
+`streamlit run app/app.py`. `requirements.txt` at the repository root is
+the app-minimal install; Streamlit Community Cloud reads that file. The app
+shows:
 
 - a calibrated P(spam), the conformal set, and one band;
 - extracted URL(s) and basic message stats;
@@ -189,8 +190,8 @@ make summary        # regenerate all docs from the JSONs
 Capstone app only (no dev tooling):
 
 ```bash
-pip install -r requirements-app.txt
-python -m smishlens.serve --build    # writes artifacts/serve/ (git-ignored)
+pip install -r requirements.txt
+make build-serve                     # writes artifacts/serve/ (git-ignored)
 streamlit run app/app.py
 ```
 

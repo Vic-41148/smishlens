@@ -7,7 +7,7 @@ PY     := .venv/bin/python
 PIP    := .venv/bin/pip
 export PYTHONPATH := src
 
-.PHONY: setup test lint train app serve build-serve eda data summary docs diag e17 public-check install-hooks clean
+.PHONY: setup test lint train app serve build-serve eda data summary docs diag e17 public-check install-hooks deploy-env clean
 
 setup:
 	python3 -m venv .venv
@@ -74,6 +74,11 @@ install-hooks:
 	@mkdir -p .git/hooks
 	install -m 0755 deploy/pre-push .git/hooks/pre-push
 	@echo "installed .git/hooks/pre-push"
+
+# Fresh venv from requirements.txt only, pool CSVs moved aside, optional Docker
+# smoke. Writes reports/results/deploy_env.json.
+deploy-env:
+	python3 scripts/deploy_env.py
 
 clean:
 	rm -rf .pytest_cache .ruff_cache

@@ -1,4 +1,11 @@
-# Development and test tooling.
+# Development, test and pipeline tooling. The hosted app needs only
+# requirements.txt; Streamlit Community Cloud does not read this file.
 -r requirements.txt
+fastapi==0.165.0
+httpx==0.28.1
+matplotlib==3.11.2
+pydantic==2.13.4
 pytest==9.1.1
 ruff==0.17.6
+snowballstemmer==3.1.1
+uvicorn==0.52.4

@@ -8,6 +8,7 @@ pages. No message text is read or written.
 
 from __future__ import annotations
 
+import json
 import re
 
 from smishlens.docs_gen import LICENCE, pool_stats
@@ -16,6 +17,7 @@ from smishlens.results_summary import ROOT, load, num
 OUT = ROOT / "docs" / "DEPLOYMENT.md"
 CARD_DIR = ROOT / "data" / "cards"
 UCI_CARD = ROOT / "data" / "processed" / "uci" / "DATA_CARD.md"
+DEPLOY_ENV = ROOT / "reports" / "results" / "deploy_env.json"
 
 VERIFIED = "2026-11-22"
 
@@ -75,6 +77,15 @@ def hosting_facts() -> list[str]:
         "  switched to public in the app settings.",
         "- **One private-repository app at a time.** Invited viewers sign in.",
         "  - https://docs.streamlit.io/deploy/streamlit-community-cloud/share-your-app",
+        "- **Python version.** Community Cloud supports released Python versions",
+        "  that are still receiving security updates, and **defaults to 3.12**.",
+        "  A version is chosen from the \"Python version\" dropdown in the",
+        "  \"Advanced settings\" modal; an app on an unsupported version is",
+        "  forcibly upgraded and may break. Do not assume 3.14 is selectable:",
+        "  check the dropdown, and prefer 3.12, which is the default and the",
+        "  version this bundle is verified against (`make deploy-env`).",
+        "  - https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy#optional-configure-secrets-and-python-version",
+        "  - https://docs.streamlit.io/deploy/streamlit-community-cloud/status#python-environments",
         "",
         "### Self-host fallback",
         "",
@@ -187,6 +198,75 @@ def licence_lines(stats: dict) -> list[str]:
         "and it does not make the model weights open. Treat the private repo as",
         "the boundary: the artifact stays there, and the app is the only public",
         "surface.",
+        "",
+    ]
+    return lines
+
+
+def _yes(value) -> str:
+    return {True: "yes", False: "**no**"}.get(value, "—")
+
+
+def deploy_env_lines() -> list[str]:
+    """Deployment-environment checks, read from ``reports/results/deploy_env.json``."""
+    lines = ["## Deployment-environment check", ""]
+    if not DEPLOY_ENV.exists():
+        return lines + [
+            "Not yet run. Run `make deploy-env` to build a clean venv from",
+            "`requirements.txt`, smoke the app and the Docker image, and write",
+            "`reports/results/deploy_env.json`.",
+            "",
+        ]
+
+    env = json.loads(DEPLOY_ENV.read_text())
+    packages = env.get("packages", {})
+    cross = env.get("cross_version", {})
+    docker = env.get("docker", {})
+    lines += [
+        f"Generated {env.get('generated_utc', '—')} by `make deploy-env`. "
+        "Every value below is read from `reports/results/deploy_env.json`.",
+        "",
+        "| check | result |",
+        "|---|---|",
+        f"| clean-venv Python | {env.get('python_version', '—')} |",
+        f"| requirements file | `{env.get('requirements', '—')}` "
+        f"({len(packages)} pins) |",
+        "| resolved packages | "
+        + ", ".join(f"`{name}=={version}`" for name, version in sorted(packages.items()))
+        + " |",
+        f"| artifact sha256 | `{env.get('artifact_sha256', '—')}` |",
+        f"| matches `MANIFEST.sha256` | {_yes(env.get('artifact_matches_manifest'))} |",
+        f"| app import path | {_yes(env.get('app_import_ok'))} |",
+        f"| bundle loads | {_yes(env.get('bundle_loaded'))} |",
+        f"| AppTest (notice + score) | {_yes(env.get('apptest_ok'))} |",
+        f"| pool CSVs absent during check | {_yes(env.get('csvs_absent'))} |",
+        f"| CSVs restored byte-identical | {_yes(env.get('csv_restore_verified'))} |",
+    ]
+    if cross:
+        lines.append(
+            f"| cross-version score ({cross.get('reference_python', '—')} vs "
+            f"{env.get('python_version', '—')}) | {_yes(cross.get('match'))}, "
+            f"max |Δ| {num(cross.get('max_abs_diff'), 12)} "
+            f"(tolerance {num(cross.get('tolerance'), 12)}) |"
+        )
+    if docker:
+        if docker.get("tested"):
+            lines.append(
+                f"| Docker image | `{docker.get('base_image', '—')}`, "
+                f"{num(docker.get('image_size_mb'), 1)} MB, health "
+                f"{_yes(docker.get('health_ok'))}, no pool data "
+                f"{_yes(docker.get('no_pool_csvs'))}, removed "
+                f"{_yes(docker.get('image_removed'))} |"
+            )
+        else:
+            lines.append(
+                f"| Docker image | not tested: {docker.get('note', docker.get('error', '—'))} |"
+            )
+    lines += [
+        "",
+        "The synthetic probe is a fixed invented string; its text is never",
+        "printed, logged or written. Only its band, conformal set and calibrated",
+        "score are recorded.",
         "",
     ]
     return lines
@@ -332,6 +412,7 @@ def deployment() -> str:
     lines += hosting_facts()
     lines += split_table()
     lines += licence_lines(stats)
+    lines += deploy_env_lines()
     lines += procedure()
     lines += runtime_lines(ev, boot, base)
     lines += checklist()

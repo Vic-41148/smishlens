@@ -1,0 +1,29 @@
+.git
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.ruff_cache
+.env
+.env.*
+
+# Never ship data, checkpoints or generated reports
+data
+data/local
+models
+checkpoints
+reports
+tests
+docs
+artifacts/mmbert
+artifacts/*
+!artifacts/serve/
+artifacts/serve/*
+!artifacts/serve/svm_bundle.joblib
+!artifacts/serve/metadata.json
+!artifacts/serve/MANIFEST.sha256
+
+# Session exports and local notes
+session-*.md
+*.md

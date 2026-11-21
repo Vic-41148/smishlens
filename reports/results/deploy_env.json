@@ -1,0 +1,51 @@
+{
+  "app_import_ok": true,
+  "apptest_notice": true,
+  "apptest_ok": true,
+  "apptest_scored": true,
+  "artifact_matches_manifest": true,
+  "artifact_sha256": "eeca262df368dcabd58d803038a876ca510c549b9947332a3cb2d88b96a28843",
+  "bundle_loaded": true,
+  "cross_version": {
+    "match": true,
+    "max_abs_diff": 0.0,
+    "reference_band": "needs review",
+    "reference_p_spam": 0.4771618694584907,
+    "reference_python": "3.14.10",
+    "reference_venv": "/home/vic/Projects/smishlens/.venv",
+    "tolerance": 1e-09
+  },
+  "csv_restore_verified": true,
+  "csvs_absent": true,
+  "csvs_moved": 3,
+  "docker": {
+    "base_image": "python:3.12-slim",
+    "container_removed": true,
+    "health_ok": true,
+    "image_removed": true,
+    "image_size_mb": 1090.2,
+    "installed": true,
+    "no_pool_csvs": true,
+    "synthetic_band": "needs review",
+    "tested": true
+  },
+  "error": null,
+  "generated_utc": "2026-11-21T20:58:20+00:00",
+  "host_python": "3.14.10",
+  "manifest_sha256": "eeca262df368dcabd58d803038a876ca510c549b9947332a3cb2d88b96a28843",
+  "packages": {
+    "joblib": "1.6.0",
+    "numpy": "2.5.5",
+    "pandas": "2.3.3",
+    "pyarrow": "26.0.1",
+    "scikit-learn": "1.9.1",
+    "scipy": "1.18.1",
+    "streamlit": "1.67.0"
+  },
+  "python_requested": "python3.12",
+  "python_version": "3.12.14",
+  "requirements": "requirements.txt",
+  "synthetic_band": "needs review",
+  "synthetic_p_spam": 0.4771618694584907,
+  "synthetic_set": []
+}
