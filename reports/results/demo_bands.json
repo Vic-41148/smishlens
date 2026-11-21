@@ -1,0 +1,81 @@
+{
+  "n_examples": 10,
+  "rows": [
+    {
+      "label": "Parcel fee",
+      "band": "likely scam",
+      "conformal_set": [
+        1
+      ],
+      "p_spam": 0.989215
+    },
+    {
+      "label": "Bank OTP (legit)",
+      "band": "looks ordinary",
+      "conformal_set": [
+        0
+      ],
+      "p_spam": 0.270833
+    },
+    {
+      "label": "Dinner plan",
+      "band": "needs review",
+      "conformal_set": [],
+      "p_spam": 0.910741
+    },
+    {
+      "label": "Prize lure",
+      "band": "likely scam",
+      "conformal_set": [
+        1
+      ],
+      "p_spam": 0.999878
+    },
+    {
+      "label": "Hinglish KYC",
+      "band": "likely scam",
+      "conformal_set": [
+        1
+      ],
+      "p_spam": 0.999963
+    },
+    {
+      "label": "Invoice",
+      "band": "likely scam",
+      "conformal_set": [
+        1
+      ],
+      "p_spam": 0.996304
+    },
+    {
+      "label": "Meeting move",
+      "band": "looks ordinary",
+      "conformal_set": [
+        0
+      ],
+      "p_spam": 0.009405
+    },
+    {
+      "label": "Account threat",
+      "band": "likely scam",
+      "conformal_set": [
+        1
+      ],
+      "p_spam": 0.999962
+    },
+    {
+      "label": "Family note",
+      "band": "looks ordinary",
+      "conformal_set": [
+        0
+      ],
+      "p_spam": 0.013241
+    },
+    {
+      "label": "Voicemail",
+      "band": "needs review",
+      "conformal_set": [],
+      "p_spam": 0.927881
+    }
+  ]
+}

@@ -10,7 +10,15 @@ from __future__ import annotations
 import csv
 from collections import defaultdict
 
-from smishlens.results_summary import ROOT, load, num, pct, row
+from smishlens.results_summary import (
+    ROOT,
+    e17_table,
+    evasion_source_table,
+    load,
+    num,
+    pct,
+    row,
+)
 
 MANIFEST = ROOT / "data" / "processed" / "modern" / "split_manifest.csv"
 
@@ -601,11 +609,11 @@ def slides() -> str:
     base = load("e3_pool.json")["base_rate"]
     imc_share = stats["imc25"]["test_spam"] / total_test_spam
     ev = load("e7_e10_evasion.json")["models"]["svm"]
-    f = load("f_experiments.json")
-    f3 = load("diag_language_f3.json")["f3"]
-    gold_meta = _gold_v2()
-    gold = gold_meta["models"]
+    ev_src = load("e7_e10_by_source.json")
+    boot = load("e6_gold_v2_bootstrap.json")["gold"]["v2"]
+    gold = boot["models"]
     e17 = load("e17_latency.json")["arms"]
+    env = load("deploy_env.json")
     lines = [
         "# Slides outline",
         "",
@@ -614,7 +622,7 @@ def slides() -> str:
         "",
         "---",
         "",
-        "## 1. The question",
+        "## 1. The problem",
         "",
         "- \"98% accurate\" SMS filters are usually measured on a 2011 corpus.",
         "- How much survives when the messages are modern and from several sources?",
@@ -626,7 +634,7 @@ def slides() -> str:
         "",
         "---",
         "",
-        "## 2. Data",
+        "## 2. Data and licences",
         "",
         f"- Pool test: {base['pool_test_rows']:,} rows, prevalence "
         f"{num(base['pool_test_prevalence'])} (positive-heavy by design).",
@@ -634,7 +642,9 @@ def slides() -> str:
         f"- IMC'25 supplies {pct(imc_share)} of test spam, so pool-wide numbers are "
         f"dominated by one source.",
         "- Licences: IMC'25 / Mishra / UCI CC BY 4.0; **MOZ, ExAIS and Smishtank",
-        "  unverified or missing**. Raw text never redistributed.",
+        "  unverified or missing**. Raw text is never redistributed.",
+        "- The pool has almost no real bank-alert ham; that gap drives the failure",
+        "  mode on slide 7.",
         "",
         "Speaker note: the licence row matters for any public deployment.",
         "",
@@ -645,14 +655,15 @@ def slides() -> str:
         "- Normalise (NFKC, confusables, defang URLs), then word 1–2 gram + char 3–5",
         "  gram TF-IDF + meta features.",
         "- LinearSVC, class-balanced, trained on the pool **train** split.",
-        "- Frozen threshold: max recall s.t. out-of-fold FPR ≤ 1%.",
+        "- Frozen threshold: max recall s.t. out-of-fold FPR ≤ 1%, from train OOF",
+        "  only.",
         "- Platt calibration on `cal_a`; class-conditional conformal `q_hat` on the",
         "  same `cal_a`, `alpha = 0.05`.",
-        "- No test or gold row is used to fit, calibrate or select.",
+        "- No test or gold row is used to fit, calibrate, select or tune.",
         "",
         "---",
         "",
-        "## 4. In-pool test (E3)",
+        "## 4. In-pool results (E3)",
         "",
         "| scope | recall | FPR | PR-AUC |",
         "|---|---:|---:|---:|",
@@ -664,7 +675,7 @@ def slides() -> str:
         "",
         "---",
         "",
-        "## 5. Leave-one-source-out (E4)",
+        "## 5. LOSO and source shift (E4)",
         "",
         "| held out | recall | FPR | PR-AUC |",
         "|---|---:|---:|---:|",
@@ -673,13 +684,37 @@ def slides() -> str:
     lines += [
         "",
         "- Ranking transfers better than the threshold.",
-        f"- `moz` PR-AUC {num(_svm_e4('moz')['pr_auc'])} vs a base rate near "
-        f"{num(row(_e4(), 'dummy', 'moz')['pr_auc'])}: the ranking itself is near "
-        f"chance there.",
+        f"- `moz` PR-AUC {num(_svm_e4('moz')['pr_auc'])} against a base rate of "
+        f"{num(row(_e4(), 'dummy', 'moz')['pr_auc'])}: the ranking itself is near",
+        f"chance there. Recall {num(_svm_e4('moz')['recall'])}, FPR "
+        f"{num(_svm_e4('moz')['fpr'])}.",
+        "- This is a whole-source holdout, not a random split.",
         "",
         "---",
         "",
-        "## 6. Failure analysis",
+        "## 6. Synthetic gold (Claude-authored, with bootstrap CIs)",
+        "",
+        "| model | recall [95% CI] | FPR [95% CI] | PR-AUC [95% CI] |",
+        "|---|---|---|---|",
+    ]
+    for model, label in (("svm", "svm"), ("mmbert_base", "mmBERT-base"), ("dummy", "dummy (prior)")):
+        m = gold[model]
+        lines.append(
+            f"| {label} | {num(m['recall']['point'])} "
+            f"[{num(m['recall']['lo'])}, {num(m['recall']['hi'])}] | "
+            f"{num(m['fpr']['point'])} [{num(m['fpr']['lo'])}, {num(m['fpr']['hi'])}] | "
+            f"{num(m['pr_auc']['point'])} "
+            f"[{num(m['pr_auc']['lo'])}, {num(m['pr_auc']['hi'])}] |"
+        )
+    lines += [
+        "",
+        f"- {boot['n_pos']} spam / {boot['n_neg']} ham. The intervals are wide.",
+        "- Gold is synthetic, never used for selection, and its absolute FPR is not",
+        "  a field estimate.",
+        "",
+        "---",
+        "",
+        "## 7. Failure analysis",
         "",
     ]
     lines += failure_bullets()
@@ -687,73 +722,144 @@ def slides() -> str:
         "",
         "---",
         "",
-        "## 7. Evasion (E7/E8/E10)",
+        "## 8. Evasion per source (E7/E8/E10)",
         "",
         f"- Normaliser OFF → ON, svm: clean recall "
         f"{num(ev['baseline']['off']['recall'])} → {num(ev['baseline']['on']['recall'])}, "
         f"FPR {num(ev['baseline']['off']['fpr'])} → {num(ev['baseline']['on']['fpr'])}.",
-        f"- Leetspeak is the costliest attack: "
-        f"{num(ev['attacks']['off']['leet']['recall_mean'])} → "
-        f"{num(ev['attacks']['on']['leet']['recall_mean'])}.",
-        "- Pool-wide evasion is dominated by `imc25`; the per-source table is in the",
-        "  summary. `moz` and `smishtank` behave differently from `imc25`.",
-        "- mmBERT-base is less sensitive to homoglyphs and leetspeak than svm.",
+        "- Pool-wide evasion is dominated by `imc25`; read the per-source table.",
+    ]
+    lines += evasion_source_table(ev_src)
+    lines += [
         "",
-        "Speaker note: do not quote a single evasion percentage without naming the",
-        "source mix.",
+        "Speaker note: never quote one evasion percentage without naming the source",
+        "mix.",
         "",
         "---",
         "",
-        "## 8. Fix attempts (F1–F5): none is a fix",
+        "## 9. Latency, footprint, and the app",
         "",
-        "- Pre-registered rule: macro FPR must drop ≥ 0.05 while macro PR-AUC falls",
-        "  ≤ 0.02.",
-        "- `prevalence_*`: worse FPR and worse PR-AUC.",
-        f"- `source_class_balanced` (F3): passes the letter of the rule (FPR "
-        f"{num(f['arms']['baseline']['macro']['macro_fpr'])} → "
-        f"{num(f['arms']['source_class_balanced']['macro']['macro_fpr'])}) **only** "
-        f"by collapsing recall to "
-        f"{num(f['arms']['source_class_balanced']['macro']['macro_recall'])}. "
-        f"Post-hoc: unweighted-quantile artifact on `mishra`; on `moz` PR-AUC is "
-        f"{num(f3['folds']['moz']['source_class_balanced']['pr_auc'])} against a "
-        f"base rate of {num(row(_e4(), 'dummy', 'moz')['pr_auc'])} but recall is "
-        f"{num(f3['folds']['moz']['source_class_balanced']['recall'])} at the "
-        f"1%-FPR threshold (weak at the top).",
-        f"- `format_masked`: removes the format shortcut but worsens LOSO "
-        f"(PR-AUC {num(f['arms']['baseline']['macro']['macro_pr_auc'])} → "
-        f"{num(f['arms']['format_masked']['macro']['macro_pr_auc'])}).",
-        "- Every arm is reported, including failures.",
+    ]
+    lines += e17_table(load("e17_latency.json"))
+    lines += [
         "",
-        "---",
-        "",
-        "## 9. The app",
-        "",
-        "- Streamlit, svm only on the hosted path; mmBERT-base is optional and",
-        "  local-only.",
+        "- Hosted path is svm only; mmBERT-base is optional and local-only.",
         "- Output: calibrated score, conformal set, and one band: \"likely scam\" /",
-        "  \"looks ordinary\" / \"needs review\".",
-        "- Bands come only from the frozen conformal rule; no new tuning.",
-        f"- Always-visible notice: triage aid, not a verdict; "
-        f"{pct(gold['svm']['fpr']['point'], 0)} FPR on synthetic bank/service ham; "
-        f"almost no real bank-alert ham; weak on non-English sources; nothing "
-        f"stored or logged.",
-        "- Sender-ID field is displayed only and does not change the score",
-        "  (experimental).",
-        f"- Latency: svm {num(e17['svm']['batch_1_ms']['p50'], 2)} ms p50 per message.",
+        "  \"looks ordinary\" / \"needs review\". Bands come only from the frozen",
+        "  conformal rule; no new thresholds.",
+        f"- Artifact on disk: {num(e17['svm']['disk_mb'], 1)} MB; peak RSS",
+        f"  {num(e17['svm']['rss_mb'], 0)} MB.",
+        "- Always-visible notice: triage aid, not a verdict; nothing stored or logged.",
         "",
         "---",
         "",
-        "## 10. Limits and next steps",
+        "## 10. Limitations and deployment",
         "",
         "- **Limits:** positive-heavy synthetic pool; one source dominates; threshold",
         "  does not port; no real bank-alert ham; no multilingual coverage; single",
-        "  message, no context.",
-        "- **What would help:** real bank/service ham, non-English held-out sources,",
-        "  and a target-specific calibration set.",
-        "- **What not to do:** ship the frozen threshold as an auto-blocker, or quote",
-        "  in-pool numbers as field performance.",
-        "- **Reproduce:** `make summary`, `python -m smishlens.serve --build`,",
-        "  `streamlit run app/app.py`.",
+        "  message, no context; accuracy is never reported.",
+        "- **Two repositories, one clone.** `origin` is public (code, docs, text-free",
+        "  data). The serving bundle lives only on a local `private-deploy` branch",
+        "  pushed to a `private` remote you add.",
+        "- The bundle is a TF-IDF vocabulary plus SVC weights derived from pool text,",
+        "  so keeping it out of the public repository avoids redistribution.",
+        "- Hosted on Streamlit Community Cloud, private repository, entrypoint",
+        f"  `app/app.py`, Python {env['python_version']} from `deploy_env.json`.",
+        "- **Reproduce:** `make summary`, `make build-serve`,",
+        "  `streamlit run app/app.py`. Full plan: `docs/DEPLOYMENT.md`.",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def demo_script() -> str:
+    stats, total_test_spam = pool_stats()
+    base = load("e3_pool.json")["base_rate"]
+    gold = load("e6_gold_v2_bootstrap.json")["gold"]["v2"]
+    e17 = load("e17_latency.json")["arms"]
+    env = load("deploy_env.json")
+    bands = load("demo_bands.json")
+    by_label = {item["label"]: item for item in bands["rows"]}
+    lines = [
+        "# Demo script (3 minutes)",
+        "",
+        "Generated from `reports/results/*.json` by `make summary`. Use only the",
+        "synthetic demo messages built into the app: they are invented for this",
+        "demo, are not gold rows, and are not pool rows. Never paste a real",
+        "message, and never show a real-alert evaluation row.",
+        "",
+        "Pre-flight: `streamlit run app/app.py`, confirm the always-visible notice",
+        "is present, and keep the browser at a readable zoom.",
+        "",
+        "## Run order",
+        "",
+        "| time | action | say |",
+        "|---|---|---|",
+        f"| 0:00–0:20 | Open the app. Point at the notice. | \"This is a triage aid,"
+        f" not a verdict. The pool is {pct(base['pool_test_prevalence'])} positive, so"
+        f" we never quote accuracy.\" |",
+        "| 0:20–0:50 | Click the demo button **Parcel fee**, then **Check message**. |"
+        f" \"A delivery-fee lure with a defanged URL. Band: {by_label['Parcel fee']['band']};"
+        f" calibrated score {num(by_label['Parcel fee']['p_spam'], 3)}. The URL is"
+        " extracted for the user, not visited.\" |",
+        "| 0:50–1:20 | Click **Bank OTP (legit)**. |"
+        f" \"A legitimate one-time code. Band: {by_label['Bank OTP (legit)']['band']};"
+        f" score {num(by_label['Bank OTP (legit)']['p_spam'], 3)}. This is the case that"
+        " matters: a bank alert must not be auto-blocked.\" |",
+        "| 1:20–1:45 | Click **Dinner plan**. |"
+        f" \"Ordinary chat. Band: {by_label['Dinner plan']['band']} — the conformal set"
+        f" is empty, so the app asks for review instead of guessing. Score"
+        f" {num(by_label['Dinner plan']['p_spam'], 3)}.\" |",
+        "| 1:45–2:05 | Click **Invoice**. |"
+        f" \"A legitimate invoice message. Band: {by_label['Invoice']['band']}. That is"
+        " the known failure: legitimate transactional text reads as spammy. We show"
+        " it rather than hide it.\" |",
+        "| 2:05–2:25 | Click **Hinglish KYC**. |"
+        f" \"A Hinglish KYC lure. Band: {by_label['Hinglish KYC']['band']}; score"
+        f" {num(by_label['Hinglish KYC']['p_spam'], 3)}. The pool is mostly English,"
+        " so this is a demonstration, not a multilingual claim.\" |",
+        "| 2:25–2:45 | Point at the footer recipe line. |"
+        f" \"Frozen: pool train, Platt and conformal on cal_a only. Scoring takes"
+        f" {num(e17['svm']['batch_1_ms']['p50'], 2)} ms on CPU; the artifact is"
+        f" {num(e17['svm']['disk_mb'], 1)} MB.\" |",
+        "| 2:45–3:00 | Stop. | \"The ranking transfers better than the threshold. The"
+        " demo is deliberately not an auto-blocker.\" |",
+        "",
+        "## Likely questions",
+        "",
+        "- **Why no accuracy?** The pool test set is "
+        f"{pct(base['pool_test_prevalence'])} positive on {base['pool_test_rows']:,}",
+        "  rows, so accuracy would mostly restate the base rate. We report recall,",
+        "  FPR and PR-AUC per source instead.",
+        "- **Why is FPR about "
+        f"{num(gold['models']['svm']['fpr']['point'], 1)} on gold?** Gold is",
+        f"  synthetic and has only {gold['n_neg']} ham rows, many of them legitimate",
+        "  bank/service messages. The pool has almost no real bank-alert ham, so the",
+        "  model never learned that pattern. The interval is wide and the absolute",
+        "  FPR is not a field estimate.",
+        "- **Why is mmBERT not hosted?** It needs "
+        f"{num(e17['mmbert_base']['rss_mb'], 0)} MB peak RSS and",
+        f"  {num(e17['mmbert_base']['disk_mb'], 1)} MB on disk, against",
+        f"  {num(e17['svm']['rss_mb'], 0)} MB and {num(e17['svm']['disk_mb'], 1)} MB",
+        "  for svm, and it is optional behind `SMISHLENS_ENABLE_MMBERT=1`.",
+        "- **Why is the artifact private?** The bundle is a TF-IDF vocabulary plus",
+        "  SVC weights derived from pool text. MOZ, ExAIS and Smishtank have",
+        "  unverified or missing text licences, so redistributing the bundle is not",
+        "  clearly safe. It stays on the `private` remote; the public repository is",
+        "  code and text-free data only.",
+        "- **Does it generalise to new sources?** Ranking often does; the frozen",
+        "  threshold does not. `moz` is the counter-example where even ranking is",
+        "  near chance.",
+        "- **Was gold used for tuning?** No. Gold was scored once, after the",
+        "  recipe was frozen.",
+        "",
+        "## Numbers used here",
+        "",
+        "All values are read from `reports/results/*.json`:",
+        "`e3_pool.json`, `e6_gold_v2_bootstrap.json`, `e17_latency.json`,",
+        f"`demo_bands.json` and `deploy_env.json` (Python {env['python_version']}).",
+        "`demo_bands.json` is written by `make demo-bands` from the frozen bundle;",
+        "it holds label, band, conformal set and score only, never message text.",
         "",
     ]
     return "\n".join(lines)
@@ -763,7 +869,8 @@ def main() -> int:
     (ROOT / "README.md").write_text(readme())
     (ROOT / "MODEL_CARD.md").write_text(model_card())
     (ROOT / "docs" / "SLIDES_OUTLINE.md").write_text(slides())
-    print("wrote README.md, MODEL_CARD.md, docs/SLIDES_OUTLINE.md")
+    (ROOT / "docs" / "DEMO_SCRIPT.md").write_text(demo_script())
+    print("wrote README.md, MODEL_CARD.md, docs/SLIDES_OUTLINE.md, docs/DEMO_SCRIPT.md")
     return 0
 
 

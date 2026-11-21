@@ -7,7 +7,7 @@ PY     := .venv/bin/python
 PIP    := .venv/bin/pip
 export PYTHONPATH := src
 
-.PHONY: setup test lint train app serve build-serve eda data summary docs diag e17 public-check real-alerts install-hooks deploy-env clean
+.PHONY: setup test lint train app serve build-serve eda data summary docs diag e17 public-check real-alerts demo-bands install-hooks deploy-env clean
 
 setup:
 	python3 -m venv .venv
@@ -72,6 +72,10 @@ public-check:
 # Aggregates only; refuses a thin ham sample. Writes reports/results/real_alerts.json.
 real-alerts:
 	$(PY) scripts/eval_real_alerts.py
+
+# Record the frozen band for each synthetic demo message (text-free).
+demo-bands:
+	$(PY) scripts/demo_bands.py
 
 # Install the committed pre-push template. The hook uses the stdlib python3
 # path only, so it works without the venv.

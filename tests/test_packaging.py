@@ -15,6 +15,7 @@ TEXT_FILES = (
     "README.md",
     "MODEL_CARD.md",
     "docs/DEPLOYMENT.md",
+    "docs/DEMO_SCRIPT.md",
     "Makefile",
     "Dockerfile",
     "src/smishlens/docs_gen.py",
