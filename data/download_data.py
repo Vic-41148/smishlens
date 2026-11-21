@@ -5,8 +5,9 @@ Raw data is git-ignored: several sources are PII-bearing and some licences do
 not allow redistribution. This script is the reproducible artefact.
 
 Usage:
-    python data/download_data.py            # fetch missing sources
-    python data/download_data.py --force    # refetch everything
+    python data/download_data.py              # fetch missing sources
+    python data/download_data.py --force      # refetch everything
+    python data/download_data.py --only uci   # fetch only the UCI anchor
 """
 
 from __future__ import annotations
@@ -70,6 +71,12 @@ def exists(path: Path, force: bool) -> bool:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--force", action="store_true", help="refetch existing sources")
+    ap.add_argument(
+        "--only",
+        choices=["uci"],
+        default=None,
+        help="fetch a single source only (uci: the Tier 1 anchor)",
+    )
     args = ap.parse_args()
     RAW.mkdir(parents=True, exist_ok=True)
 
@@ -83,6 +90,10 @@ def main() -> int:
         zpath.unlink(missing_ok=True)
     else:
         print("[1/9] UCI: present")
+
+    if args.only == "uci":
+        print("\nDone (--only uci).")
+        return 0
 
     # 2. IMC'25 smishing
     imc_file = RAW / "imc25" / "dataset" / "final_dataset_output.csv"
