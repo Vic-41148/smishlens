@@ -55,8 +55,8 @@ touched exactly once, by the final evaluation, and never for tuning.
   2024–2026 (shorteners, branded domains, OTP lures) are barely represented.
 - **Class imbalance.** 12.4 % spam. Accuracy is meaningless here; every reported
   number is PR-AUC / F1 / MCC / recall at a fixed FPR.
-- **URL scarcity.** Only 2.5 % of rows contain a URL, so URL-masking ablations
-  have little room to move the anchor metric.
+- **URL scarcity.** Only 2.5 % of all rows contain a URL (19 % of spam, 0.3 % of
+  ham), so URL-masking ablations have limited room to move the anchor metric.
 - **Length.** Mean message length is short (SMS-scale); no long-form messages.
 - **Anonymisation.** Placeholders (`xxx`, `0000`) are corpus artefacts. The
   normaliser maps them to stable tokens; do not treat them as real entities.
