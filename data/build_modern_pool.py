@@ -10,13 +10,16 @@ Writes:
 The split is drawn once at seed 42. Re-running this script on the same raw tree
 reproduces the same manifest; do not change the seed afterwards.
 
-Usage: python data/build_modern_pool.py [--raw DIR] [--out DIR]
+Usage: python data/build_modern_pool.py [--raw DIR] [--out DIR] [--overrides FILE]
+
+``--overrides`` is a JSON object of ``{row_id: ham|spam|smish}`` produced from a
+reviewed label audit (see ``data/apply_audit.py``). Corrections are applied
+before dedup, so the pool is rebuilt from the corrected labels.
 """
 
 from __future__ import annotations
 
 import argparse
-import csv
 import json
 import sys
 from pathlib import Path
@@ -24,32 +27,23 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from smishlens.data import SCHEMA  # noqa: E402
-from smishlens.pool import build  # noqa: E402
+from smishlens.pool import build, write_pool  # noqa: E402
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--raw", default=str(ROOT / "data" / "raw"))
     ap.add_argument("--out", default=str(ROOT / "data" / "processed" / "modern"))
+    ap.add_argument("--overrides", default=None, help="JSON {row_id: y3} corrections")
     args = ap.parse_args()
 
+    overrides = None
+    if args.overrides:
+        overrides = json.loads(Path(args.overrides).read_text())
+
     out = Path(args.out)
-    out.mkdir(parents=True, exist_ok=True)
-    result = build(raw=Path(args.raw))
-
-    frame, split_of = result["frame"], result["split_of"]
-    for name in ("train", "cal", "test"):
-        part = frame[split_of == name]
-        part[SCHEMA].to_csv(
-            out / f"{name}.csv", index=False, quoting=csv.QUOTE_MINIMAL, lineterminator="\n"
-        )
-
-    result["manifest"].to_csv(
-        out / "split_manifest.csv", index=False, quoting=csv.QUOTE_MINIMAL, lineterminator="\n"
-    )
-    (out / "loso_folds.json").write_text(json.dumps(result["loso"], indent=2) + "\n")
-    (out / "data_audit.json").write_text(json.dumps(result["audit"], indent=2) + "\n")
+    result = build(raw=Path(args.raw), label_overrides=overrides)
+    write_pool(result, out)
 
     audit = result["audit"]
     print(f"modern pool -> {out}")
@@ -62,6 +56,8 @@ def main() -> int:
         )
     print(f"  dataset hash      {audit['dataset_sha256_16']}")
     print(f"  folds             {len(result['loso']['folds'])}")
+    if overrides:
+        print(f"  label overrides   {audit['label_overrides']['n']}")
     return 0
 
 

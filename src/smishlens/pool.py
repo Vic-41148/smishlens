@@ -12,7 +12,9 @@ committed.
 
 from __future__ import annotations
 
+import csv
 import hashlib
+import json
 from pathlib import Path
 
 import numpy as np
@@ -257,9 +259,60 @@ def ood_stats(raw: Path | None = None) -> dict[str, dict]:
     return out
 
 
-def build(raw: Path | None = None, seed: int = SEED) -> dict:
+def apply_label_overrides(frame: pd.DataFrame, overrides: dict[str, str]) -> pd.DataFrame:
+    """Apply ``{row_id: y3}`` corrections to a freshly loaded frame.
+
+    Corrections are applied before dedup so a fixed label can also resolve a
+    label conflict. Unknown ids raise: a stale review file must not silently
+    become a no-op.
+    """
+    if not overrides:
+        return frame
+    frame = frame.copy()
+    ids = [row_id(s, t) for s, t in zip(frame["source"], frame["text"], strict=True)]
+    hit = 0
+    for i, rid in enumerate(ids):
+        y3 = overrides.get(rid)
+        if y3 is None:
+            continue
+        if y3 not in ("ham", "spam", "smish"):
+            raise ValueError(f"row {rid}: bad label {y3!r}")
+        frame.at[i, "y3"] = y3
+        frame.at[i, "y"] = 0 if y3 == "ham" else 1
+        hit += 1
+    missing = sorted(set(overrides) - set(ids))
+    if missing:
+        raise ValueError(f"{len(missing)} override ids not in the pool: {missing[:5]}")
+    if hit != len(overrides):
+        raise ValueError("override application mismatch")
+    return frame
+
+
+def write_pool(result: dict, out: Path) -> None:
+    """Write the processed splits, text-free manifest, folds and audit into ``out``."""
+    out = Path(out)
+    out.mkdir(parents=True, exist_ok=True)
+    frame, split_of = result["frame"], result["split_of"]
+    for name in ("train", "cal", "test"):
+        part = frame[split_of == name]
+        part[SCHEMA].to_csv(
+            out / f"{name}.csv", index=False, quoting=csv.QUOTE_MINIMAL, lineterminator="\n"
+        )
+    result["manifest"].to_csv(
+        out / "split_manifest.csv", index=False, quoting=csv.QUOTE_MINIMAL, lineterminator="\n"
+    )
+    (out / "loso_folds.json").write_text(json.dumps(result["loso"], indent=2) + "\n")
+    (out / "data_audit.json").write_text(json.dumps(result["audit"], indent=2) + "\n")
+
+
+def build(
+    raw: Path | None = None,
+    seed: int = SEED,
+    label_overrides: dict[str, str] | None = None,
+) -> dict:
     """Return the frozen pool, its splits, folds, manifest and audit."""
     raw_frame = load_pool(raw=raw)
+    raw_frame = apply_label_overrides(raw_frame, label_overrides or {})
     uci = load_uci_from_raw(raw)
 
     frame, within = dedup_within(raw_frame)
@@ -313,6 +366,10 @@ def build(raw: Path | None = None, seed: int = SEED) -> dict:
 
     audit = {
         "seed": seed,
+        "label_overrides": {
+            "n": len(label_overrides or {}),
+            "applied_before_dedup": bool(label_overrides),
+        },
         "pool_sources": list(POOL_SOURCES),
         "ood_only_sources": list(OOD_SOURCES),
         "excluded_sources": {
@@ -321,7 +378,8 @@ def build(raw: Path | None = None, seed: int = SEED) -> dict:
             "wspr": "68,029 recall-only phishing messages; kept as an OOD source so it "
             "cannot swamp the pool's class balance",
         },
-        "dedup": {"within": within, "vs_uci": uci_overlap, "cross_source": cross},        "per_source_stages": {
+        "dedup": {"within": within, "vs_uci": uci_overlap, "cross_source": cross},
+        "per_source_stages": {
             stage: {k: int(v) for k, v in sorted(counts.items())}
             for stage, counts in stages.items()
         },

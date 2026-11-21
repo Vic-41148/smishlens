@@ -9,6 +9,7 @@ import pandas as pd
 from smishlens.data import SCHEMA
 from smishlens.pool import (
     _normalised_key,
+    apply_label_overrides,
     dedup_across_sources,
     dedup_within,
     drop_near_dups,
@@ -196,3 +197,80 @@ def test_audit_json_round_trips():
         )
     )
     assert payload["seed"] == 42
+
+
+def test_apply_label_overrides_changes_both_labels():
+    frame = _frame([("hello", "ham"), ("win cash", "smish")], "moz")
+    ids = [row_id(s, t) for s, t in zip(frame["source"], frame["text"], strict=True)]
+    out = apply_label_overrides(frame, {ids[0]: "smish"})
+    assert out.loc[0, "y3"] == "smish"
+    assert out.loc[0, "y"] == 1
+    assert out.loc[1, "y3"] == "smish"  # untouched
+
+
+def test_apply_label_overrides_rejects_stale_ids():
+    frame = _frame([("hello", "ham")], "moz")
+    try:
+        apply_label_overrides(frame, {"deadbeefdeadbeef": "spam"})
+    except ValueError as exc:
+        assert "not in the pool" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("stale override id must raise")
+
+
+def test_apply_label_overrides_rejects_bad_label():
+    frame = _frame([("hello", "ham")], "moz")
+    rid = row_id("moz", "hello")
+    try:
+        apply_label_overrides(frame, {rid: "maybe"})
+    except ValueError as exc:
+        assert "bad label" in str(exc)
+    else:  # pragma: no cover
+        raise AssertionError("bad label must raise")
+
+
+def test_override_resolves_label_conflict_before_dedup():
+    frame = pd.concat(
+        [
+            _frame([("claim your prize now", "spam")], "exais"),
+            _frame([("claim your prize now", "ham")], "moz"),
+        ],
+        ignore_index=True,
+    )
+    out, log = dedup_within(frame)
+    assert out.empty  # conflicting labels drop both rows
+    assert log["dropped_label_conflict"] == 2
+
+    rid = row_id("moz", "claim your prize now")
+    fixed = apply_label_overrides(frame, {rid: "spam"})
+    out, log = dedup_within(fixed)
+    assert len(out) == 1
+    assert out["source"].iloc[0] == "exais"  # dedup priority still decides
+    assert log["dropped_label_conflict"] == 0
+
+
+def test_build_applies_label_overrides(monkeypatch):
+    from smishlens import pool as pool_mod
+
+    # Distinct alphabetic tokens: the normaliser masks digits, so numbered
+    # templates would collapse to one key.
+    topics = [f"topic{chr(97 + i // 26)}{chr(97 + i % 26)}" for i in range(40)]
+    rows = [
+        (f"congratulations you have won the {t} prize call now", "smish") for t in topics
+    ]
+    rows += [(f"see you at the {t} station later", "ham") for t in topics]
+    frame = _frame(rows, "exais")
+
+    monkeypatch.setattr(pool_mod, "load_pool", lambda raw=None: frame.copy())
+    monkeypatch.setattr(pool_mod, "load_uci_from_raw", lambda raw=None: frame.iloc[0:0])
+    monkeypatch.setattr(pool_mod, "ood_stats", lambda raw=None: {})
+
+    rid = row_id("exais", "see you at the topicaa station later")
+    result = pool_mod.build(label_overrides={rid: "smish"})
+
+    assert result["audit"]["label_overrides"] == {"n": 1, "applied_before_dedup": True}
+    out = result["frame"]
+    row = out.loc[out["text"] == "see you at the topicaa station later"].iloc[0]
+    assert row["y3"] == "smish"
+    assert row["y"] == 1
+    assert int(out["y"].sum()) == 41
