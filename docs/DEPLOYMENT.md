@@ -1,6 +1,6 @@
 # Deployment plan
 
-Status: **prepared, not pushed**. No remote is created by this repo.
+Status: **prepared, not pushed**. `origin` already exists; you add `private`.
 
 Primary target: **Streamlit Community Cloud**, deployed from a private
 GitHub repository. Public repository: code and docs only, no artifact.
@@ -133,61 +133,124 @@ The synthetic probe is a fixed invented string; its text is never
 printed, logged or written. Only its band, conformal set and calibrated
 score are recorded.
 
-## Procedure (run these yourself; this repo has no remotes)
+## Procedure (two repositories, one clone)
 
-The private artifact lives on a **local branch** in this same clone.
-There is no second clone and no `private` remote until you add one.
+| remote | url | branch | contents |
+|---|---|---|---|
+| `origin` | `git@github.com:Vic-41148/smishlens.git` | `main` | code, docs, text-free data |
+| `private` | you add it | `private-deploy` → `main` | the same tree plus the serving bundle |
 
-1. Add the two remotes:
+`private-deploy` is a **local** branch created from `main`. It adds exactly
+one commit: `deploy/private-unignore.txt` appended to `.gitignore` and the
+three files under `artifacts/serve/`. Nothing else differs.
 
-   ```bash
-   git remote add origin <public-repo-url>
-   git remote add private <private-repo-url>
-   ```
+### 1. The first push to origin
 
-2. Push the public branch:
+`origin` already exists. Its only commit is GitHub's "Initial commit" and
+it contains `LICENSE` alone:
 
-   ```bash
-   git push origin main
-   ```
+```bash
+git show origin/main --stat --format="%h %s"
+git ls-tree -r --name-only origin/main     # LICENSE
+```
 
-3. Push the artifact branch to the private repository's `main`:
+In this clone that commit is the **root of `main`** (`git merge-base main
+origin/main` returns it), so the histories are already related and the
+push is a plain fast-forward:
 
-   ```bash
-   git push private private-deploy:main
-   ```
+```bash
+git merge-base --is-ancestor origin/main main && echo fast-forward
+git push origin main
+```
 
-4. In Streamlit Community Cloud, deploy from the **private** repository
-   with entrypoint `app/app.py`. Choose app visibility in the app
-   settings afterwards.
+Do **not** force-push. If a later clone does not share that root, merge
+instead:
 
-### Updating the private branch
+```bash
+git fetch origin
+git merge --allow-unrelated-histories origin/main
+git commit -S            # only if the merge did not commit on its own
+```
 
-Develop on `main`, never on `private-deploy`. When `main` changes:
+`git pull --rebase origin main` also works, but a rebase rewrites every
+local commit hash and **invalidates every GPG signature**; each commit
+then has to be re-signed. Prefer the merge unless the origin commit is
+empty or trivial.
+
+### 2. Add the private remote and push
+
+```bash
+git remote add private <private-repo-url>
+git push origin main
+git push private private-deploy:main
+```
+
+The pre-push hook refuses `private-deploy` on any remote not named
+`private`, and refuses any ref on `origin` whose history touches
+`artifacts/serve`.
+
+### 3. Streamlit Community Cloud
+
+1. share.streamlit.io → **Create app** → pick the **private** repository,
+   branch `main`, entrypoint `app/app.py`.
+2. **Advanced settings → Python version.** Choose the version recorded by
+   `make deploy-env` (**3.12.14** here). The docs say Community
+   Cloud defaults to 3.12 and offers released, security-supported versions
+   from a dropdown; check the dropdown instead of assuming 3.14 is there.
+3. Dependencies come from `requirements.txt` at the repository root. Do not
+   add `requirements-dev.txt`; the cloud does not read it.
+4. **Visibility.** A private repository produces a private app by default.
+   You can switch the app to public in its settings; the repository and the
+   bundle stay private.
+5. **Viewers.** Invite them by email in the app settings; they must sign in.
+   Only **one private-repository app** is allowed at a time.
+6. The cloud overrides some `.streamlit/config.toml` keys, for example
+   `browser.gatherUsageStats=true` and `client.showErrorDetails=false`.
+
+### 4. Updating the private branch
+
+Develop on `main`, never on `private-deploy`. When `main` moves:
 
 ```bash
 git switch private-deploy
-git rebase main          # or: git merge main
-make build-serve         # rebuild artifacts/serve from your licensed data
+git merge main            # or: git rebase main
+make build-serve          # needs your licensed copy of the pool data
 git add artifacts/serve && git commit -S -m "deploy: refresh serving bundle"
 git switch main
 ```
 
-`make build-serve` rewrites `svm_bundle.joblib`, `metadata.json` and
-`MANIFEST.sha256` together, so the manifest always matches the bundle.
-Commit all three in the same commit.
+`make build-serve` rewrites the bundle, `metadata.json` and
+`MANIFEST.sha256` together. Commit all three in one commit, then check that
+`git diff --stat main..private-deploy` lists only `.gitignore` and those
+three files.
 
-### Before every push
+### 5. Coolify fallback (home server)
+
+If Community Cloud is unavailable, run the same image on `192.168.0.101`:
 
 ```bash
-python -m smishlens.public_check            # public mode, inspects main
-python -m smishlens.public_check --private  # run on private-deploy
+git switch private-deploy
+docker build -t smishlens:local .
+docker run -d --name smishlens -p 8501:8501 smishlens:local
 ```
 
-`make install-hooks` adds a `pre-push` hook that runs the matching check
-on the refs being pushed, refuses `private-deploy` on any remote not
-named `private`, and refuses any ref that touches `artifacts/serve` on
-`origin`.
+In Coolify: new resource → Dockerfile → this repository and branch. Expose
+port 8501 and health-check `/_stcore/health`. The public repository cannot
+build this image: `artifacts/serve/` is absent, so the app starts in its
+documented "bundle not distributed" state.
+
+### 6. Pre-push checklist
+
+- [ ] `make public-check` passes on `main`.
+- [ ] `python -m smishlens.public_check --private` passes on `private-deploy`.
+- [ ] `ruff check .` and the full `pytest` suite pass.
+- [ ] `make summary` leaves no diff (generated docs are current).
+- [ ] `git log main -- artifacts/serve` is empty.
+- [ ] `git diff --stat main..private-deploy` lists only the four files.
+- [ ] `MANIFEST.sha256` matches the bundle and metadata.
+- [ ] `make install-hooks` has installed the pre-push hook.
+- [ ] The app loads and scores with the pool CSVs absent, and the
+      always-visible notice is present.
 
 ## What Streamlit Cloud needs
 
@@ -220,21 +283,3 @@ named `private`, and refuses any ref that touches `artifacts/serve` on
   0.5429.
 - Pool test: 6,090 rows, prevalence
   0.8529.
-
-## Pre-push checklist
-
-- [ ] `python -m smishlens.public_check` passes on `main`.
-- [ ] `git log main -- artifacts/serve` is empty.
-- [ ] `python -m smishlens.public_check --private` passes on `private-deploy`.
-- [ ] The private branch has exactly the three serving files under
-      `artifacts/serve/`.
-- [ ] `MANIFEST.sha256` matches the bundle and metadata.
-- [ ] The app loads and scores with the pool CSVs absent.
-- [ ] The always-visible notice is present.
-- [ ] `README.md` links to `MODEL_CARD.md` and `docs/DEPLOYMENT.md`.
-
-## Fallback
-
-If Streamlit Community Cloud is unavailable, self-host the same app with
-Coolify + Gitea on the home server. The runtime requirements are the
-same: `requirements.txt`, `app/app.py`, and `artifacts/serve/`.
