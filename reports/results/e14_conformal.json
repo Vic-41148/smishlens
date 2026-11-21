@@ -1,0 +1,106 @@
+{
+  "nominal_coverage": 0.95,
+  "alpha": 0.05,
+  "in_pool": {
+    "note": "cal_a fits q_hat, cal_b is evaluated; resplits draw 20 random 50/50 splits of the calibration split",
+    "svm_pool": {
+      "point_estimate": {
+        "label": "cal_a -> cal_b",
+        "n": 2435,
+        "n_pos": 2076,
+        "n_neg": 359,
+        "coverage_ham": 0.935933147632312,
+        "coverage_spam": 0.9624277456647399,
+        "coverage_overall": 0.9585215605749486,
+        "abstain_rate": 0.03737166324435318,
+        "q_hat": {
+          "0": 0.36525556651772,
+          "1": 0.017055571053886553
+        }
+      },
+      "resplits": {
+        "n_splits": 20,
+        "mean": {
+          "cov_ham": 0.9536330799646139,
+          "cov_spam": 0.9480729789750197,
+          "abstain": 0.046550308008213546
+        },
+        "min": {
+          "cov_ham": 0.9213483146067416,
+          "cov_spam": 0.932622394571013,
+          "abstain": 0.038193018480492814
+        },
+        "max": {
+          "cov_ham": 0.976878612716763,
+          "cov_spam": 0.963924963924964,
+          "abstain": 0.05995893223819302
+        }
+      }
+    },
+    "mmbert_base": {
+      "point_estimate": {
+        "label": "cal_a -> cal_b",
+        "n": 2435,
+        "n_pos": 2076,
+        "n_neg": 359,
+        "coverage_ham": 0.9805013927576601,
+        "coverage_spam": 0.9552023121387283,
+        "coverage_overall": 0.9589322381930184,
+        "abstain_rate": 0.03860369609856263,
+        "q_hat": {
+          "0": 0.1120581179857254,
+          "1": 0.015140831470489502
+        }
+      },
+      "resplits": {
+        "n_splits": 20,
+        "mean": {
+          "cov_ham": 0.9516472962475827,
+          "cov_spam": 0.9496659408368879,
+          "abstain": 0.047885010266940455
+        },
+        "min": {
+          "cov_ham": 0.9159663865546218,
+          "cov_spam": 0.9371980676328503,
+          "abstain": 0.03572895277207392
+        },
+        "max": {
+          "cov_ham": 0.9826589595375722,
+          "cov_spam": 0.9629629629629629,
+          "abstain": 0.061601642710472276
+        }
+      }
+    }
+  },
+  "loso": {
+    "note": "mmBERT-small frozen fold checkpoints, no refit; q_hat read from each fold metadata.json. mmBERT-base was not LOSO-tested. Resplits do not apply: q_hat is frozen per fold.",
+    "mishra": {
+      "label": "LOSO mishra, frozen q_hat",
+      "n": 599,
+      "n_pos": 232,
+      "n_neg": 367,
+      "coverage_ham": 0.5367847411444142,
+      "coverage_spam": 0.43103448275862066,
+      "coverage_overall": 0.4958263772954925,
+      "abstain_rate": 0.41569282136894825,
+      "q_hat": {
+        "0": 0.03418287942351547,
+        "1": 0.009539779477965693
+      }
+    },
+    "moz": {
+      "label": "LOSO moz, frozen q_hat",
+      "n": 2330,
+      "n_pos": 546,
+      "n_neg": 1784,
+      "coverage_ham": 0.17152466367713004,
+      "coverage_spam": 0.7271062271062271,
+      "coverage_overall": 0.3017167381974249,
+      "abstain_rate": 0.39012875536480685,
+      "q_hat": {
+        "0": 0.19795181526050493,
+        "1": 0.01792617779795269
+      }
+    }
+  }
+}

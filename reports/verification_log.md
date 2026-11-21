@@ -872,3 +872,214 @@ gold row was read. Gold stays closed.
 
 
 
+
+---
+
+## 2026-11-21 — Phase 1 close-out: gold v2, E12-E14, RQ1 gap
+
+Text-free entry. No gold message, id or note appears here or in any output
+file. Gold was not used for tuning or selection at any point.
+
+### Commit (c): gold v2 frozen before any model saw it
+
+`99b21ce` — signed, `git log --show-signature -1` reports a good signature.
+`data/gold_holdout_v2.csv`, 58 rows, ham 35 / smish 19 / spam 4, en 44 /
+hinglish 14, `synthetic=1` on every row, no duplicate ids. Written by Claude
+on the user's behalf and frozen here. `ruff` clean and 126 tests passed before
+the commit. The temporary GPG pinentry config was restored afterwards and the
+agent restarted.
+
+### Gold pass 2 — `reports/results/e6_gold_v2.json`
+
+One pass, one write. v1 (133 rows) and v2 (58 rows) are separate blocks.
+`e6_gold.json` was not touched.
+
+**Provenance, stated plainly:** v1 was first scored before the ExAIS ham-only
+rebuild, so it is no longer pristine for that decision; this pass is a repeat
+for v1. v2 was frozen before any model scored it and is pristine.
+
+| gold | model | recall | FPR | PR-AUC |
+|---|---|---:|---:|---:|
+| v1 (133) | svm (pool) | 0.7162 | 0.4915 | 0.7479 |
+| v1 (133) | mmBERT-base E3 | 0.8784 | 0.5424 | 0.8767 |
+| v1 (133) | Dummy | 0.0000 | 0.0000 | 0.5564 |
+| v2 (58) | svm (pool) | 0.6957 | 0.5429 | 0.6850 |
+| v2 (58) | mmBERT-base E3 | 1.0000 | 0.4857 | 0.8483 |
+| v2 (58) | Dummy | 0.0000 | 0.0000 | 0.3966 |
+
+By language, v2 (aggregate only):
+
+| model | language | n | recall | FPR |
+|---|---|---:|---:|---:|
+| svm | en | 44 | 0.7059 | 0.6667 |
+| svm | hinglish | 14 | 0.6667 | 0.1250 |
+| mmBERT-base | en | 44 | 1.0000 | 0.5556 |
+| mmBERT-base | hinglish | 14 | 1.0000 | 0.2500 |
+
+The by-`scam_type` block is in the JSON. The aggregate pattern is the story:
+on v2, mmBERT-base flags 7/7 ham `bank_alert` rows and 2/2 ham `utility` rows;
+`personal` ham is 0/8 flagged. svm shows the same direction less sharply. No
+row is reproduced here.
+
+Reading:
+
+- The frozen 1% pool threshold does not transfer to gold. Pool test FPR was
+  0.0056 (base) and 0.0097 (svm); gold FPR is ~0.49-0.54 for both. Recall
+  stays high, and PR-AUC stays 0.85 (base) / 0.69 (svm) on v2, so the ranking
+  is far better than the thresholded decision.
+- The failure is concentrated in legitimate bank/service messages. A model
+  trained to read "bank + urgency + link" as spam blocks real bank alerts.
+  This is a threshold-transfer failure, not a ranking failure, and it is the
+  most important gold result so far.
+- Gold is synthetic and Claude-written. Treat the absolute FPR as a warning
+  about style shift as well as about the model; do not quote it as a field
+  false-positive rate.
+- Hinglish FPR is lower than en on both models. With 8 Hinglish ham rows in
+  v2 this is not evidence; it is a note for the Phase 2 Hinglish slice.
+
+### E13 — calibration on `cal_b` only
+
+`reports/results/e13_calibration.json`, `reports/figures/e13_reliability.png`.
+
+| model | n | ECE (10 bins) | Brier | mean confidence | base rate |
+|---|---:|---:|---:|---:|---:|
+| svm (pool) | 2,435 | 0.0064 | 0.0087 | 0.8554 | 0.8526 |
+| mmBERT-base | 2,435 | 0.0054 | 0.0046 | 0.8480 | 0.8526 |
+
+Method: `cal_a` fits the map, `cal_b` is evaluated. The pool svm is a raw
+`LinearSVC` decision function, so Platt (`sigmoid(a*score+b)`) was fitted on
+`cal_a` decision scores and applied to `cal_b`; no probability was invented
+before `cal_a`. mmBERT uses its stored temperature `T=2.542974`, already fitted
+on `cal_a`. Nothing was fitted on `cal_b`.
+
+Caveat: `cal_b` is also the half the E3 conformal `q_hat` was fitted on, so it
+is held out for temperature/Platt but not unused. It is 85% spam and both
+models are bimodal, so ECE is dominated by the two extreme bins. The figure
+marks sparse bins but does not connect them; low ECE here does not certify the
+mid-confidence range, which has very few rows.
+
+### E12 — PPV at 1%, 5%, 10% prevalence
+
+`reports/results/e12_ppv.json`. Arithmetic only, from frozen E3 (in-pool) and
+E4 (LOSO) recall/FPR. No test row was re-scored.
+
+In-pool, E3 test thresholds:
+
+| model | source | recall | FPR | PPV@1% | PPV@5% | PPV@10% |
+|---|---|---:|---:|---:|---:|---:|
+| svm | mishra | 0.7021 | 0.0137 | 0.3411 | 0.7296 | 0.8506 |
+| svm | moz | 0.9174 | 0.0056 | 0.6232 | 0.8960 | 0.9479 |
+| svm | macro | 0.8098 | 0.0097 | 0.4822 | 0.8128 | 0.8993 |
+| mmBERT-base | mishra | 0.7872 | 0.0000 | 1.0000 | 1.0000 | 1.0000 |
+| mmBERT-base | moz | 0.9908 | 0.0112 | 0.4718 | 0.8231 | 0.9076 |
+| mmBERT-base | macro | 0.8890 | 0.0056 | 0.7359 | 0.9116 | 0.9538 |
+
+Under LOSO, E4 frozen fold thresholds:
+
+| model | source | recall | FPR | PPV@1% | PPV@5% | PPV@10% |
+|---|---|---:|---:|---:|---:|---:|
+| svm | mishra | 0.4871 | 0.0245 | 0.1671 | 0.5111 | 0.6882 |
+| svm | moz | 0.3187 | 0.3111 | 0.0102 | 0.0512 | 0.1022 |
+| svm | macro | 0.4029 | 0.1678 | 0.0887 | 0.2811 | 0.3952 |
+| mmBERT-small | mishra | 0.4957 | 0.0545 | 0.0841 | 0.3237 | 0.5026 |
+| mmBERT-small | moz | 0.7125 | 0.3812 | 0.0185 | 0.0896 | 0.1720 |
+| mmBERT-small | macro | 0.6041 | 0.2178 | 0.0513 | 0.2067 | 0.3373 |
+
+**Label:** E4 LOSO exists for classical svm and mmBERT-**small**, not for
+mmBERT-base. The LOSO rows must not be read as base-model results. The base
+model was never LOSO-tested.
+
+How PPV collapses: at 1% prevalence, in-pool macro PPV is 0.48 (svm) and 0.74
+(base); under LOSO it is 0.09 (svm) and 0.05 (small). On `moz` under LOSO, svm
+PPV@1% is 0.010, i.e. roughly one true alert per hundred. A 31% FPR makes a
+low-prevalence alert stream almost all false alarms, regardless of recall.
+
+### E14 — conformal coverage vs the 0.95 target
+
+`reports/results/e14_conformal.json`. Nominal coverage 0.95, `alpha=0.05`,
+class-conditional (Mondrian) sets.
+
+In-pool (cal_a fits `q_hat`, cal_b is evaluated):
+
+| model | ham coverage | spam coverage | overall | abstain |
+|---|---:|---:|---:|---:|
+| svm (pool) | 0.9359 | 0.9624 | 0.9585 | 0.0374 |
+| mmBERT-base | 0.9805 | 0.9552 | 0.9589 | 0.0386 |
+
+20 random 50/50 resplits of the calibration split (mean, min-max):
+
+| model | cov_ham | cov_spam | abstain |
+|---|---|---|---|
+| svm | 0.9536 (0.9213-0.9769) | 0.9481 (0.9326-0.9639) | 0.0466 (0.0382-0.0600) |
+| mmBERT-base | 0.9516 (0.9160-0.9827) | 0.9497 (0.9372-0.9630) | 0.0479 (0.0357-0.0616) |
+
+LOSO (mmBERT-small frozen fold checkpoints, no refit; `q_hat` from each fold's
+`metadata.json`):
+
+| held out | ham coverage | spam coverage | overall | abstain |
+|---|---:|---:|---:|---:|
+| mishra | 0.5368 | 0.4310 | 0.4958 | 0.4157 |
+| moz | 0.1715 | 0.7271 | 0.3017 | 0.3901 |
+
+The in-pool guarantee holds at the nominal level. Under source shift it does
+not: overall coverage falls to 0.50 on mishra and 0.30 on moz, while the
+abstain rate rises to ~39-42%. Conformal abstention does not repair the shift;
+it converts some errors into abstentions but still leaves most predictions
+uncovered. Resplits are not run for LOSO because `q_hat` is frozen per fold;
+that is deliberate, not missing work.
+
+**Repeat disclosure:** E14 LOSO re-scores the frozen E4 checkpoints
+(`artifacts/mmbert/e4_small/heldout_<source>`) with no refit. It is a
+deterministic repeat of a model already scored once, not a new look at a
+retrained model. The per-fold scores were not saved in E4, so this is the only
+way to get coverage without refitting.
+
+### RQ1 headline — the E3-vs-E4 gap is source shift, not model size
+
+| arm | setting | macro recall | macro FPR | macro PR-AUC |
+|---|---|---:|---:|---:|
+| mmBERT-**base** | E3 in-pool test | 0.8890 | 0.0056 | 0.9814 |
+| svm | E3 in-pool test | 0.8098 | 0.0097 | 0.9773 |
+| mmBERT-**small** | E4 LOSO | 0.6041 | 0.2178 | 0.5701 |
+| svm | E4 LOSO | 0.4029 | 0.1678 | 0.5473 |
+
+The in-pool number is high (PR-AUC 0.98 for base) and the held-out-source
+number collapses to 0.57 (small) and 0.55 (svm). That is the RQ1 result: the
+pool test split overstates generalisation, and the drop is driven by source
+shift, not by the transformer. **E3 is base, E4 is small.** There is no
+base LOSO arm, so the table cannot separate "base is better than small" from
+"in-pool is easier than LOSO"; do not attribute the gap to parameter count.
+
+Frozen embeddings: the input token-embedding matrix (about 197M of the base
+model's ~307M parameters) has `requires_grad=False`; the transformer layers and
+the classification head train. That is what makes a 307M-parameter model fit in
+6 GB, and it also means the SMS/Hinglish token representations are never
+adapted, only the layers above them. It is a plausible contributor to the
+out-of-source brittleness, not something this phase measured.
+
+### Surprises
+
+1. Gold FPR ~0.49-0.54 for both models, against ~0.006-0.01 on pool test.
+   Ranking survives (PR-AUC 0.85 base on v2); the threshold does not.
+2. The false positives concentrate in legitimate bank/service messages
+   (`bank_alert`, `utility`), not in ordinary personal ham.
+3. Conformal coverage is nominal in-pool and collapses under LOSO, including
+   ham coverage of 0.17 on `moz`. Abstention rises but does not rescue coverage.
+4. ECE is tiny in-pool mainly because `cal_b` is 85% spam and predictions are
+   bimodal; this is not evidence of good mid-range calibration.
+
+### What was NOT run
+
+- No mmBERT-base LOSO. E4 covers svm and mmBERT-small only.
+- No gold-driven tuning, threshold change or model selection. Gold stayed
+  closed for decisions; v2 was scored once.
+- No re-scoring of the pool test split for E12-E14. E12 is arithmetic from
+  frozen JSON; E13/E14 use the calibration split; E14 LOSO is the disclosed
+  deterministic re-score of frozen checkpoints.
+- No E14 resplits for LOSO (frozen `q_hat`).
+- No bootstrap intervals on gold; n=58 is small and the brief did not ask for
+  them.
+- No E7-E10 evasion work, no E11 Hinglish slice, no serving, packaging or live
+  URL.
+- No audit of how realistic the synthetic gold hams are.
+- Phase 1 outputs are not committed.

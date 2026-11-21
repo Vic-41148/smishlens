@@ -36,6 +36,26 @@ def apply_temperature(margins, T: float):
     return _sigmoid(np.asarray(margins, dtype=float) / float(T))
 
 
+def fit_platt(scores, y) -> tuple[float, float]:
+    """Fit Platt ``sigmoid(a * score + b)`` on raw decision scores.
+
+    Used only where the estimator exposes ``decision_function`` and no
+    probability, such as the pool ``LinearSVC`` arm. Fit on the calibration
+    half that is not used for evaluation.
+    """
+    from sklearn.linear_model import LogisticRegression
+
+    z = np.asarray(scores, dtype=float).reshape(-1, 1)
+    lr = LogisticRegression(C=1e6, solver="lbfgs", max_iter=1000)
+    lr.fit(z, np.asarray(y))
+    return float(lr.coef_[0][0]), float(lr.intercept_[0])
+
+
+def apply_platt(scores, a: float, b: float):
+    """Apply a fitted Platt map to raw decision scores."""
+    return _sigmoid(float(a) * np.asarray(scores, dtype=float) + float(b))
+
+
 def ece(p, y, bins: int = 10) -> float:
     """Expected calibration error, equal-width bins."""
     p = np.asarray(p, dtype=float)

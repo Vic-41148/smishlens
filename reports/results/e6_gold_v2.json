@@ -1,0 +1,1203 @@
+{
+  "synthetic": true,
+  "note": "second gold pass; v1 was first scored before the ExAIS ham-only change, so it is not pristine for that decision; v2 was frozen in commit 99b21ce before any model scored it and is pristine",
+  "scored_once_v2": true,
+  "gold_versions": {
+    "v1": {
+      "pristine": false,
+      "pristine_note": "first scored on 2026-11-21 before the ExAIS rebuild; this pass is a repeat and must not be described as a first look",
+      "path": "data/gold_holdout.csv",
+      "n": 133,
+      "n_pos": 74,
+      "n_neg": 59,
+      "models": {
+        "svm": {
+          "tau": 0.39906112413722694,
+          "n_train": 19487,
+          "n": 133,
+          "n_pos": 74,
+          "n_neg": 59,
+          "recall": 0.7162162162162162,
+          "fpr": 0.4915254237288136,
+          "pr_auc": 0.7478566443038599,
+          "roc_auc": 0.6905634448007331,
+          "by_language": [
+            {
+              "language": "en",
+              "n": 104,
+              "n_pos": 56,
+              "n_neg": 48,
+              "recall": 0.7321428571428571,
+              "fpr": 0.5416666666666666
+            },
+            {
+              "language": "hinglish",
+              "n": 29,
+              "n_pos": 18,
+              "n_neg": 11,
+              "recall": 0.6666666666666666,
+              "fpr": 0.2727272727272727
+            }
+          ],
+          "by_scam_type": [
+            {
+              "scam_type": "appointment",
+              "n": 5,
+              "n_pos": 0,
+              "n_neg": 5,
+              "recall": null,
+              "fpr": 0.0
+            },
+            {
+              "scam_type": "bank_alert",
+              "n": 9,
+              "n_pos": 0,
+              "n_neg": 9,
+              "recall": null,
+              "fpr": 1.0
+            },
+            {
+              "scam_type": "banking",
+              "n": 13,
+              "n_pos": 13,
+              "n_neg": 0,
+              "recall": 0.9230769230769231,
+              "fpr": null
+            },
+            {
+              "scam_type": "crypto",
+              "n": 2,
+              "n_pos": 2,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "delivery_link-less",
+              "n": 2,
+              "n_pos": 2,
+              "n_neg": 0,
+              "recall": 0.5,
+              "fpr": null
+            },
+            {
+              "scam_type": "delivery_update",
+              "n": 10,
+              "n_pos": 0,
+              "n_neg": 10,
+              "recall": null,
+              "fpr": 0.7
+            },
+            {
+              "scam_type": "govt",
+              "n": 4,
+              "n_pos": 4,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "govt_legit",
+              "n": 3,
+              "n_pos": 0,
+              "n_neg": 3,
+              "recall": null,
+              "fpr": 1.0
+            },
+            {
+              "scam_type": "hey_mum",
+              "n": 2,
+              "n_pos": 2,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "impersonation",
+              "n": 1,
+              "n_pos": 1,
+              "n_neg": 0,
+              "recall": 0.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "job",
+              "n": 6,
+              "n_pos": 6,
+              "n_neg": 0,
+              "recall": 0.8333333333333334,
+              "fpr": null
+            },
+            {
+              "scam_type": "otp",
+              "n": 8,
+              "n_pos": 0,
+              "n_neg": 8,
+              "recall": null,
+              "fpr": 0.625
+            },
+            {
+              "scam_type": "otp_scam",
+              "n": 2,
+              "n_pos": 2,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "parcel",
+              "n": 8,
+              "n_pos": 8,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "personal",
+              "n": 15,
+              "n_pos": 0,
+              "n_neg": 15,
+              "recall": null,
+              "fpr": 0.0
+            },
+            {
+              "scam_type": "prize",
+              "n": 3,
+              "n_pos": 3,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "promo",
+              "n": 14,
+              "n_pos": 14,
+              "n_neg": 0,
+              "recall": 0.35714285714285715,
+              "fpr": null
+            },
+            {
+              "scam_type": "promo_legit",
+              "n": 2,
+              "n_pos": 0,
+              "n_neg": 2,
+              "recall": null,
+              "fpr": 0.5
+            },
+            {
+              "scam_type": "receipt",
+              "n": 2,
+              "n_pos": 0,
+              "n_neg": 2,
+              "recall": null,
+              "fpr": 0.5
+            },
+            {
+              "scam_type": "toll",
+              "n": 2,
+              "n_pos": 2,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "travel",
+              "n": 1,
+              "n_pos": 0,
+              "n_neg": 1,
+              "recall": null,
+              "fpr": 1.0
+            },
+            {
+              "scam_type": "upi",
+              "n": 5,
+              "n_pos": 5,
+              "n_neg": 0,
+              "recall": 0.8,
+              "fpr": null
+            },
+            {
+              "scam_type": "utility",
+              "n": 9,
+              "n_pos": 5,
+              "n_neg": 4,
+              "recall": 0.6,
+              "fpr": 0.5
+            },
+            {
+              "scam_type": "wrong_number",
+              "n": 5,
+              "n_pos": 5,
+              "n_neg": 0,
+              "recall": 0.0,
+              "fpr": null
+            }
+          ]
+        },
+        "dummy": {
+          "tau": 1.852716659182757,
+          "n_train": 19487,
+          "n": 133,
+          "n_pos": 74,
+          "n_neg": 59,
+          "recall": 0.0,
+          "fpr": 0.0,
+          "pr_auc": 0.556390977443609,
+          "roc_auc": 0.5,
+          "by_language": [
+            {
+              "language": "en",
+              "n": 104,
+              "n_pos": 56,
+              "n_neg": 48,
+              "recall": 0.0,
+              "fpr": 0.0
+            },
+            {
+              "language": "hinglish",
+              "n": 29,
+              "n_pos": 18,
+              "n_neg": 11,
+              "recall": 0.0,
+              "fpr": 0.0
+            }
+          ],
+          "by_scam_type": [
+            {
+              "scam_type": "appointment",
+              "n": 5,
+              "n_pos": 0,
+              "n_neg": 5,
+              "recall": null,
+              "fpr": 0.0
+            },
+            {
+              "scam_type": "bank_alert",
+              "n": 9,
+              "n_pos": 0,
+              "n_neg": 9,
+              "recall": null,
+              "fpr": 0.0
+            },
+            {
+              "scam_type": "banking",
+              "n": 13,
+              "n_pos": 13,
+              "n_neg": 0,
+              "recall": 0.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "crypto",
+              "n": 2,
+              "n_pos": 2,
+              "n_neg": 0,
+              "recall": 0.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "delivery_link-less",
+              "n": 2,
+              "n_pos": 2,
+              "n_neg": 0,
+              "recall": 0.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "delivery_update",
+              "n": 10,
+              "n_pos": 0,
+              "n_neg": 10,
+              "recall": null,
+              "fpr": 0.0
+            },
+            {
+              "scam_type": "govt",
+              "n": 4,
+              "n_pos": 4,
+              "n_neg": 0,
+              "recall": 0.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "govt_legit",
+              "n": 3,
+              "n_pos": 0,
+              "n_neg": 3,
+              "recall": null,
+              "fpr": 0.0
+            },
+            {
+              "scam_type": "hey_mum",
+              "n": 2,
+              "n_pos": 2,
+              "n_neg": 0,
+              "recall": 0.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "impersonation",
+              "n": 1,
+              "n_pos": 1,
+              "n_neg": 0,
+              "recall": 0.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "job",
+              "n": 6,
+              "n_pos": 6,
+              "n_neg": 0,
+              "recall": 0.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "otp",
+              "n": 8,
+              "n_pos": 0,
+              "n_neg": 8,
+              "recall": null,
+              "fpr": 0.0
+            },
+            {
+              "scam_type": "otp_scam",
+              "n": 2,
+              "n_pos": 2,
+              "n_neg": 0,
+              "recall": 0.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "parcel",
+              "n": 8,
+              "n_pos": 8,
+              "n_neg": 0,
+              "recall": 0.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "personal",
+              "n": 15,
+              "n_pos": 0,
+              "n_neg": 15,
+              "recall": null,
+              "fpr": 0.0
+            },
+            {
+              "scam_type": "prize",
+              "n": 3,
+              "n_pos": 3,
+              "n_neg": 0,
+              "recall": 0.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "promo",
+              "n": 14,
+              "n_pos": 14,
+              "n_neg": 0,
+              "recall": 0.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "promo_legit",
+              "n": 2,
+              "n_pos": 0,
+              "n_neg": 2,
+              "recall": null,
+              "fpr": 0.0
+            },
+            {
+              "scam_type": "receipt",
+              "n": 2,
+              "n_pos": 0,
+              "n_neg": 2,
+              "recall": null,
+              "fpr": 0.0
+            },
+            {
+              "scam_type": "toll",
+              "n": 2,
+              "n_pos": 2,
+              "n_neg": 0,
+              "recall": 0.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "travel",
+              "n": 1,
+              "n_pos": 0,
+              "n_neg": 1,
+              "recall": null,
+              "fpr": 0.0
+            },
+            {
+              "scam_type": "upi",
+              "n": 5,
+              "n_pos": 5,
+              "n_neg": 0,
+              "recall": 0.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "utility",
+              "n": 9,
+              "n_pos": 5,
+              "n_neg": 4,
+              "recall": 0.0,
+              "fpr": 0.0
+            },
+            {
+              "scam_type": "wrong_number",
+              "n": 5,
+              "n_pos": 5,
+              "n_neg": 0,
+              "recall": 0.0,
+              "fpr": null
+            }
+          ]
+        },
+        "mmbert_base": {
+          "tau": 0.9609955853565144,
+          "T": 2.542973587720209,
+          "n": 133,
+          "n_pos": 74,
+          "n_neg": 59,
+          "recall": 0.8783783783783784,
+          "fpr": 0.5423728813559322,
+          "pr_auc": 0.876663049573207,
+          "roc_auc": 0.8263857077416399,
+          "by_language": [
+            {
+              "language": "en",
+              "n": 104,
+              "n_pos": 56,
+              "n_neg": 48,
+              "recall": 0.8928571428571429,
+              "fpr": 0.6041666666666666
+            },
+            {
+              "language": "hinglish",
+              "n": 29,
+              "n_pos": 18,
+              "n_neg": 11,
+              "recall": 0.8333333333333334,
+              "fpr": 0.2727272727272727
+            }
+          ],
+          "by_scam_type": [
+            {
+              "scam_type": "appointment",
+              "n": 5,
+              "n_pos": 0,
+              "n_neg": 5,
+              "recall": null,
+              "fpr": 0.2
+            },
+            {
+              "scam_type": "bank_alert",
+              "n": 9,
+              "n_pos": 0,
+              "n_neg": 9,
+              "recall": null,
+              "fpr": 1.0
+            },
+            {
+              "scam_type": "banking",
+              "n": 13,
+              "n_pos": 13,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "crypto",
+              "n": 2,
+              "n_pos": 2,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "delivery_link-less",
+              "n": 2,
+              "n_pos": 2,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "delivery_update",
+              "n": 10,
+              "n_pos": 0,
+              "n_neg": 10,
+              "recall": null,
+              "fpr": 1.0
+            },
+            {
+              "scam_type": "govt",
+              "n": 4,
+              "n_pos": 4,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "govt_legit",
+              "n": 3,
+              "n_pos": 0,
+              "n_neg": 3,
+              "recall": null,
+              "fpr": 0.6666666666666666
+            },
+            {
+              "scam_type": "hey_mum",
+              "n": 2,
+              "n_pos": 2,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "impersonation",
+              "n": 1,
+              "n_pos": 1,
+              "n_neg": 0,
+              "recall": 0.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "job",
+              "n": 6,
+              "n_pos": 6,
+              "n_neg": 0,
+              "recall": 0.8333333333333334,
+              "fpr": null
+            },
+            {
+              "scam_type": "otp",
+              "n": 8,
+              "n_pos": 0,
+              "n_neg": 8,
+              "recall": null,
+              "fpr": 0.375
+            },
+            {
+              "scam_type": "otp_scam",
+              "n": 2,
+              "n_pos": 2,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "parcel",
+              "n": 8,
+              "n_pos": 8,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "personal",
+              "n": 15,
+              "n_pos": 0,
+              "n_neg": 15,
+              "recall": null,
+              "fpr": 0.0
+            },
+            {
+              "scam_type": "prize",
+              "n": 3,
+              "n_pos": 3,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "promo",
+              "n": 14,
+              "n_pos": 14,
+              "n_neg": 0,
+              "recall": 0.7857142857142857,
+              "fpr": null
+            },
+            {
+              "scam_type": "promo_legit",
+              "n": 2,
+              "n_pos": 0,
+              "n_neg": 2,
+              "recall": null,
+              "fpr": 0.5
+            },
+            {
+              "scam_type": "receipt",
+              "n": 2,
+              "n_pos": 0,
+              "n_neg": 2,
+              "recall": null,
+              "fpr": 0.5
+            },
+            {
+              "scam_type": "toll",
+              "n": 2,
+              "n_pos": 2,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "travel",
+              "n": 1,
+              "n_pos": 0,
+              "n_neg": 1,
+              "recall": null,
+              "fpr": 1.0
+            },
+            {
+              "scam_type": "upi",
+              "n": 5,
+              "n_pos": 5,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "utility",
+              "n": 9,
+              "n_pos": 5,
+              "n_neg": 4,
+              "recall": 0.6,
+              "fpr": 1.0
+            },
+            {
+              "scam_type": "wrong_number",
+              "n": 5,
+              "n_pos": 5,
+              "n_neg": 0,
+              "recall": 0.6,
+              "fpr": null
+            }
+          ]
+        }
+      }
+    },
+    "v2": {
+      "pristine": true,
+      "frozen_commit": "99b21ce",
+      "pristine_note": "frozen before any model scored it; scored once here",
+      "path": "data/gold_holdout_v2.csv",
+      "n": 58,
+      "n_pos": 23,
+      "n_neg": 35,
+      "models": {
+        "svm": {
+          "tau": 0.39906112413722694,
+          "n_train": 19487,
+          "n": 58,
+          "n_pos": 23,
+          "n_neg": 35,
+          "recall": 0.6956521739130435,
+          "fpr": 0.5428571428571428,
+          "pr_auc": 0.6849510875121079,
+          "roc_auc": 0.715527950310559,
+          "by_language": [
+            {
+              "language": "en",
+              "n": 44,
+              "n_pos": 17,
+              "n_neg": 27,
+              "recall": 0.7058823529411765,
+              "fpr": 0.6666666666666666
+            },
+            {
+              "language": "hinglish",
+              "n": 14,
+              "n_pos": 6,
+              "n_neg": 8,
+              "recall": 0.6666666666666666,
+              "fpr": 0.125
+            }
+          ],
+          "by_scam_type": [
+            {
+              "scam_type": "appointment",
+              "n": 4,
+              "n_pos": 0,
+              "n_neg": 4,
+              "recall": null,
+              "fpr": 0.5
+            },
+            {
+              "scam_type": "bank_alert",
+              "n": 7,
+              "n_pos": 0,
+              "n_neg": 7,
+              "recall": null,
+              "fpr": 1.0
+            },
+            {
+              "scam_type": "banking",
+              "n": 5,
+              "n_pos": 5,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "crypto",
+              "n": 1,
+              "n_pos": 1,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "delivery_link-less",
+              "n": 1,
+              "n_pos": 1,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "delivery_update",
+              "n": 7,
+              "n_pos": 0,
+              "n_neg": 7,
+              "recall": null,
+              "fpr": 0.5714285714285714
+            },
+            {
+              "scam_type": "govt_legit",
+              "n": 1,
+              "n_pos": 0,
+              "n_neg": 1,
+              "recall": null,
+              "fpr": 1.0
+            },
+            {
+              "scam_type": "impersonation",
+              "n": 2,
+              "n_pos": 2,
+              "n_neg": 0,
+              "recall": 0.5,
+              "fpr": null
+            },
+            {
+              "scam_type": "job",
+              "n": 2,
+              "n_pos": 2,
+              "n_neg": 0,
+              "recall": 0.5,
+              "fpr": null
+            },
+            {
+              "scam_type": "otp",
+              "n": 6,
+              "n_pos": 0,
+              "n_neg": 6,
+              "recall": null,
+              "fpr": 0.6666666666666666
+            },
+            {
+              "scam_type": "parcel",
+              "n": 4,
+              "n_pos": 4,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "personal",
+              "n": 8,
+              "n_pos": 0,
+              "n_neg": 8,
+              "recall": null,
+              "fpr": 0.0
+            },
+            {
+              "scam_type": "promo",
+              "n": 4,
+              "n_pos": 4,
+              "n_neg": 0,
+              "recall": 0.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "tax",
+              "n": 1,
+              "n_pos": 1,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "upi",
+              "n": 1,
+              "n_pos": 1,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "utility",
+              "n": 2,
+              "n_pos": 0,
+              "n_neg": 2,
+              "recall": null,
+              "fpr": 0.5
+            },
+            {
+              "scam_type": "wrong_number",
+              "n": 2,
+              "n_pos": 2,
+              "n_neg": 0,
+              "recall": 0.5,
+              "fpr": null
+            }
+          ]
+        },
+        "dummy": {
+          "tau": 1.852716659182757,
+          "n_train": 19487,
+          "n": 58,
+          "n_pos": 23,
+          "n_neg": 35,
+          "recall": 0.0,
+          "fpr": 0.0,
+          "pr_auc": 0.39655172413793105,
+          "roc_auc": 0.5,
+          "by_language": [
+            {
+              "language": "en",
+              "n": 44,
+              "n_pos": 17,
+              "n_neg": 27,
+              "recall": 0.0,
+              "fpr": 0.0
+            },
+            {
+              "language": "hinglish",
+              "n": 14,
+              "n_pos": 6,
+              "n_neg": 8,
+              "recall": 0.0,
+              "fpr": 0.0
+            }
+          ],
+          "by_scam_type": [
+            {
+              "scam_type": "appointment",
+              "n": 4,
+              "n_pos": 0,
+              "n_neg": 4,
+              "recall": null,
+              "fpr": 0.0
+            },
+            {
+              "scam_type": "bank_alert",
+              "n": 7,
+              "n_pos": 0,
+              "n_neg": 7,
+              "recall": null,
+              "fpr": 0.0
+            },
+            {
+              "scam_type": "banking",
+              "n": 5,
+              "n_pos": 5,
+              "n_neg": 0,
+              "recall": 0.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "crypto",
+              "n": 1,
+              "n_pos": 1,
+              "n_neg": 0,
+              "recall": 0.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "delivery_link-less",
+              "n": 1,
+              "n_pos": 1,
+              "n_neg": 0,
+              "recall": 0.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "delivery_update",
+              "n": 7,
+              "n_pos": 0,
+              "n_neg": 7,
+              "recall": null,
+              "fpr": 0.0
+            },
+            {
+              "scam_type": "govt_legit",
+              "n": 1,
+              "n_pos": 0,
+              "n_neg": 1,
+              "recall": null,
+              "fpr": 0.0
+            },
+            {
+              "scam_type": "impersonation",
+              "n": 2,
+              "n_pos": 2,
+              "n_neg": 0,
+              "recall": 0.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "job",
+              "n": 2,
+              "n_pos": 2,
+              "n_neg": 0,
+              "recall": 0.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "otp",
+              "n": 6,
+              "n_pos": 0,
+              "n_neg": 6,
+              "recall": null,
+              "fpr": 0.0
+            },
+            {
+              "scam_type": "parcel",
+              "n": 4,
+              "n_pos": 4,
+              "n_neg": 0,
+              "recall": 0.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "personal",
+              "n": 8,
+              "n_pos": 0,
+              "n_neg": 8,
+              "recall": null,
+              "fpr": 0.0
+            },
+            {
+              "scam_type": "promo",
+              "n": 4,
+              "n_pos": 4,
+              "n_neg": 0,
+              "recall": 0.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "tax",
+              "n": 1,
+              "n_pos": 1,
+              "n_neg": 0,
+              "recall": 0.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "upi",
+              "n": 1,
+              "n_pos": 1,
+              "n_neg": 0,
+              "recall": 0.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "utility",
+              "n": 2,
+              "n_pos": 0,
+              "n_neg": 2,
+              "recall": null,
+              "fpr": 0.0
+            },
+            {
+              "scam_type": "wrong_number",
+              "n": 2,
+              "n_pos": 2,
+              "n_neg": 0,
+              "recall": 0.0,
+              "fpr": null
+            }
+          ]
+        },
+        "mmbert_base": {
+          "tau": 0.9609955853565144,
+          "T": 2.542973587720209,
+          "n": 58,
+          "n_pos": 23,
+          "n_neg": 35,
+          "recall": 1.0,
+          "fpr": 0.4857142857142857,
+          "pr_auc": 0.8483042076577546,
+          "roc_auc": 0.8838509316770186,
+          "by_language": [
+            {
+              "language": "en",
+              "n": 44,
+              "n_pos": 17,
+              "n_neg": 27,
+              "recall": 1.0,
+              "fpr": 0.5555555555555556
+            },
+            {
+              "language": "hinglish",
+              "n": 14,
+              "n_pos": 6,
+              "n_neg": 8,
+              "recall": 1.0,
+              "fpr": 0.25
+            }
+          ],
+          "by_scam_type": [
+            {
+              "scam_type": "appointment",
+              "n": 4,
+              "n_pos": 0,
+              "n_neg": 4,
+              "recall": null,
+              "fpr": 0.25
+            },
+            {
+              "scam_type": "bank_alert",
+              "n": 7,
+              "n_pos": 0,
+              "n_neg": 7,
+              "recall": null,
+              "fpr": 1.0
+            },
+            {
+              "scam_type": "banking",
+              "n": 5,
+              "n_pos": 5,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "crypto",
+              "n": 1,
+              "n_pos": 1,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "delivery_link-less",
+              "n": 1,
+              "n_pos": 1,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "delivery_update",
+              "n": 7,
+              "n_pos": 0,
+              "n_neg": 7,
+              "recall": null,
+              "fpr": 0.8571428571428571
+            },
+            {
+              "scam_type": "govt_legit",
+              "n": 1,
+              "n_pos": 0,
+              "n_neg": 1,
+              "recall": null,
+              "fpr": 0.0
+            },
+            {
+              "scam_type": "impersonation",
+              "n": 2,
+              "n_pos": 2,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "job",
+              "n": 2,
+              "n_pos": 2,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "otp",
+              "n": 6,
+              "n_pos": 0,
+              "n_neg": 6,
+              "recall": null,
+              "fpr": 0.16666666666666666
+            },
+            {
+              "scam_type": "parcel",
+              "n": 4,
+              "n_pos": 4,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "personal",
+              "n": 8,
+              "n_pos": 0,
+              "n_neg": 8,
+              "recall": null,
+              "fpr": 0.0
+            },
+            {
+              "scam_type": "promo",
+              "n": 4,
+              "n_pos": 4,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "tax",
+              "n": 1,
+              "n_pos": 1,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "upi",
+              "n": 1,
+              "n_pos": 1,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            },
+            {
+              "scam_type": "utility",
+              "n": 2,
+              "n_pos": 0,
+              "n_neg": 2,
+              "recall": null,
+              "fpr": 1.0
+            },
+            {
+              "scam_type": "wrong_number",
+              "n": 2,
+              "n_pos": 2,
+              "n_neg": 0,
+              "recall": 1.0,
+              "fpr": null
+            }
+          ]
+        }
+      }
+    }
+  },
+  "mmbert_base": {
+    "model_dir": "artifacts/mmbert/e3_base/mmbert",
+    "T": 2.542973587720209,
+    "tau": 0.9609955853565144
+  }
+}
