@@ -1,0 +1,9 @@
+# Minimal install for the hosted capstone app (svm only).
+# The mmBERT-base arm is local-only and needs requirements.txt instead.
+streamlit==1.67.0
+scikit-learn==1.9.1
+joblib==1.6.0
+numpy==2.5.5
+pandas==2.3.3
+scipy==1.18.1
+pyarrow==26.0.1

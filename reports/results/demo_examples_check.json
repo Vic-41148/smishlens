@@ -1,0 +1,14 @@
+{
+  "n_examples": 10,
+  "threshold": 0.9,
+  "gold": {
+    "n_pairs": 0,
+    "n_examples_with_match": 0,
+    "max_sim": 0.46208299713214535
+  },
+  "pool": {
+    "n_pairs": 0,
+    "n_examples_with_match": 0,
+    "max_sim": 0.4692931902043661
+  }
+}

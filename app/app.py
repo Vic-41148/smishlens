@@ -1,129 +1,168 @@
-"""Streamlit demo. A thin skin over ``predict_one``; it shows the same fields.
+"""Streamlit capstone: pool svm triage with a frozen conformal rule.
 
 Run: ``streamlit run app/app.py``
+
+The hosted path is svm only. mmBERT-base is optional and local-only, behind
+``SMISHLENS_ENABLE_MMBERT=1``. No message is stored or logged.
 """
 
 from __future__ import annotations
 
-import json
 import os
 from pathlib import Path
 
 import streamlit as st
 
-from smishlens.attacks import ATTACKS
-from smishlens.predict import load_model, predict_one
+from smishlens.demo_examples import EXAMPLES
+from smishlens.serve import (
+    BAND_HAM,
+    BAND_REVIEW,
+    BAND_SCAM,
+    DEFAULT_DIR,
+    load_bundle,
+    predict_message,
+)
 
-ARTIFACT_DIR = os.getenv("ARTIFACT_DIR", "artifacts")
+NOTICE = (
+    "Triage aid, not a verdict. In our synthetic gold check about half of "
+    "legitimate bank/service messages were flagged; the pool has almost no real "
+    "bank-alert ham; and the model is weak on non-English held-out sources. "
+    "Nothing you type is stored or logged."
+)
 
-st.set_page_config(page_title="smishlens", page_icon="🛡️", layout="wide")
+BAND_ICON = {BAND_SCAM: "🔴", BAND_REVIEW: "🟡", BAND_HAM: "🟢"}
 
-SAMPLES = {
-    "Ham": "Hey, are we still meeting at 6? I'll bring the notes.",
-    "Smish": "Your parcel is held. Pay the redelivery fee today: hxxp://example[.]test/fee",
-    "Tricky": "Are you free tonight? Did you win the match?",
-    "Disguised": "Yоur pаrcel is held. Pаy the redelivery fee tоday: hxxp://example[.]test/fee",
-}
+
+def _band_box(result) -> None:
+    icon = BAND_ICON.get(result.band, "⚪")
+    if result.band == BAND_SCAM:
+        st.error(f"{icon} **{result.band}**")
+    elif result.band == BAND_HAM:
+        st.success(f"{icon} **{result.band}**")
+    else:
+        st.warning(f"{icon} **{result.band}**")
+    st.caption(
+        "Band comes only from the frozen class-conditional conformal set. "
+        "It is not a hard verdict."
+    )
+
+
+def _result_panel(result) -> None:
+    left, mid, right = st.columns(3)
+    left.metric("Calibrated P(spam)", f"{result.p_spam:.1%}")
+    mid.metric("P(ham)", f"{result.p_ham:.1%}")
+    names = {0: "ham", 1: "spam"}
+    shown = "{" + ", ".join(names[c] for c in result.conformal_set) + "}"
+    right.metric("Conformal set", shown)
+
+    st.write(
+        f"**Message stats:** {result.n_chars:,} chars · {result.n_words:,} words · "
+        f"{result.n_urls:,} URL(s) · digit ratio {result.digit_ratio:.2f}"
+    )
+    if result.truncated:
+        st.caption("Input was truncated to the first 5,000 characters.")
+    if result.urls:
+        st.write("**Extracted URL(s):**")
+        for url in result.urls:
+            st.code(url, language=None)
+    else:
+        st.caption("No URL found in the message.")
+
+
+def _load_mmbert():
+    """Local-only second opinion. Never required by the hosted app."""
+    import json
+
+    from smishlens.train_mmbert import MMBertScorer
+
+    root = Path(__file__).resolve().parents[1]
+    art = root / "artifacts" / "mmbert" / "e3_base"
+    meta = json.loads((art / "metadata.json").read_text())
+    return MMBertScorer.load(art / "mmbert", T=float(meta["calibration"]["T"]))
 
 
 @st.cache_resource
-def bundle():
-    return load_model(ARTIFACT_DIR)
+def bundle_for(path: str) -> dict:
+    return load_bundle(path)
 
 
-def flag_text(flags: dict) -> str:
-    parts = []
-    if flags.get("confusables"):
-        parts.append(f"{flags['confusables']} look-alike letter(s)")
-    if flags.get("format_chars"):
-        parts.append(f"{flags['format_chars']} hidden character(s)")
-    if flags.get("fullwidth"):
-        parts.append(f"{flags['fullwidth']} full-width character(s)")
-    if flags.get("empty"):
-        parts.append("empty message")
-    if flags.get("error"):
-        parts.append(f"internal error: {flags['error']}")
-    return ", ".join(parts)
+def _use_demo(text: str) -> None:
+    """Callback so the text-area state is set before the widget is created."""
+    st.session_state["message"] = text
 
 
-def show_result(pred, tau: float) -> None:
-    if pred.action == "junk":
-        st.error(f"🔴 SMISHING / SPAM · P(spam) = {pred.p_spam:.0%} · threshold {tau:.2f}")
-    elif pred.action == "quarantine":
-        st.warning(f"🟡 NOT SURE: quarantined for review · P(spam) = {pred.p_spam:.0%}")
-    else:
-        st.success(f"🟢 LOOKS OK: delivered · P(spam) = {pred.p_spam:.0%} · threshold {tau:.2f}")
-
-    st.caption("Calibrated estimate, not a guarantee.")
-    st.write(
-        f"**Action:** {pred.action} · **Conformal set:** {pred.conformal_set} · "
-        f"**Latency:** {pred.latency_ms:.1f} ms · **Model:** {pred.model_version}"
-    )
-    if pred.trigger_words:
-        st.write("**Why:** " + " · ".join(f"{w} ({s:+.2f})" for w, s in pred.trigger_words))
-    if pred.normaliser_flags:
-        st.info(f"Disguise signals: {flag_text(pred.normaliser_flags)}")
-    if pred.explanation:
-        st.caption(f"Explanation (LLM-phrased, does not affect the verdict): {pred.explanation}")
+@st.cache_resource
+def mmbert_for(path: str):
+    return _load_mmbert()
 
 
 def main() -> None:
+    st.set_page_config(page_title="smishlens", page_icon="🛡️", layout="wide")
     st.title("🛡️ smishlens")
-    st.caption("Calibrated, explainable SMS spam and smishing detection.")
+    st.caption("Pool-trained svm triage for SMS spam and smishing.")
 
+    st.warning(NOTICE, icon="⚠️")
+
+    path = os.getenv("SMISHLENS_SERVE_ARTIFACT", str(DEFAULT_DIR))
     try:
-        b = bundle()
-    except Exception as exc:  # no artifact yet
-        st.error(f"No model loaded from `{ARTIFACT_DIR}`: {exc}")
-        st.info("Train one with `python -m smishlens.train --out artifacts`.")
+        bundle = bundle_for(path)
+    except Exception as exc:  # missing or tampered artifact
+        st.error(f"No verified pool artifact at `{path}`: {exc}")
+        st.info("Build one with `python -m smishlens.serve --build`.")
         return
 
-    with st.sidebar:
-        tau = st.slider(
-            "Spam threshold", 0.05, 0.99, float(b.meta["threshold"]["value"]), 0.01
-        )
-        st.caption("🔒 Runs locally. Messages are not stored.")
-        st.caption(f"Model: {b.meta.get('model_name')} v{b.meta.get('model_version')}")
+    text = st.text_area(
+        "Message",
+        key="message",
+        height=160,
+        placeholder="Paste one SMS message. It is scored locally and not stored.",
+    )
+    sender = st.text_input(
+        "Sender ID (experimental)",
+        key="sender",
+        help="Shown for context only. It does not change the score; there is no evidence for it yet.",
+    )
+    if sender:
+        st.caption("Sender ID is displayed only. The model does not read it (experimental).")
 
-    if "msg" not in st.session_state:
-        st.session_state.msg = ""
-
-    cols = st.columns(len(SAMPLES))
-    for col, (name, value) in zip(cols, SAMPLES.items(), strict=True):
-        if col.button(f"Try: {name}"):
-            st.session_state.msg = value
-
-    text = st.text_area("SMS message", key="msg", height=140, max_chars=5000)
-    st.caption(f"{len(text)}/5000 characters")
-
-    if st.button("🔍 Check message", type="primary"):
+    if st.button("Check message", key="check", type="primary"):
         if not text.strip():
-            st.warning("Please enter a message.")
+            st.warning("Enter a message first.")
         else:
-            show_result(predict_one(text, b, threshold=tau), tau)
+            result = predict_message(bundle, text)
+            _band_box(result)
+            _result_panel(result)
+            st.caption(f"Scored in {result.latency_ms:.1f} ms on this machine.")
 
-    tab_evasion, tab_perf = st.tabs(["Evasion demo", "Performance"])
+            if os.getenv("SMISHLENS_ENABLE_MMBERT") == "1":
+                try:
+                    scorer = mmbert_for("e3_base")
+                    p_mm = float(scorer.predict_proba([text])[0, 1])
+                    st.info(
+                        f"Local mmBERT-base second opinion: P(spam) = {p_mm:.1%}. "
+                        "This arm is optional and is not part of the hosted app."
+                    )
+                except Exception as exc:
+                    st.caption(f"Optional mmBERT arm unavailable: {exc}")
 
-    with tab_evasion:
-        st.write("Disguise a message and see what the normaliser notices.")
-        attack = st.selectbox("Perturbation", list(ATTACKS))
-        seed = st.number_input("Seed", 0, 999, 0, 1)
-        if st.button("Disguise and score"):
-            import random
+    with st.expander("Synthetic demo messages (invented for this app)"):
+        st.caption("These are not gold rows and not pool rows. They are labelled synthetic.")
+        for i, row in enumerate(EXAMPLES):
+            st.button(
+                row["label"],
+                key=f"demo_{i}",
+                on_click=_use_demo,
+                args=(row["text"],),
+            )
 
-            rng = random.Random(int(seed))
-            disguised = ATTACKS[attack](text or SAMPLES["Smish"], rng)
-            st.code(disguised, language=None)
-            show_result(predict_one(disguised, b, threshold=tau), tau)
-
-    with tab_perf:
-        results = Path("reports/results")
-        files = sorted(results.glob("*.json")) if results.exists() else []
-        if not files:
-            st.info("No result files yet. Run the evaluation to populate `reports/results/`.")
-        for path in files:
-            st.subheader(path.name)
-            st.json(json.loads(path.read_text()))
+    st.divider()
+    meta = bundle.get("meta", {})
+    st.caption(
+        "Frozen recipe: pool train → LinearSVC; Platt and conformal `q_hat` on "
+        "`cal_a` only. No test or gold row was used. "
+        f"Artifact `{meta.get('artifact_sha256', 'unknown')[:16]}` · "
+        f"α={meta.get('alpha')} · q_hat={meta.get('q_hat')}"
+    )
 
 
 if __name__ == "__main__":
