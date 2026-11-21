@@ -435,7 +435,6 @@ def evasion_source_table(ev: dict) -> list[str]:
 
 def e17_table(e17: dict) -> list[str]:
     lines = [
-        "",
         "Synthetic probe strings, CPU only; each arm runs in its own subprocess:",
         "",
         "| arm | batch 1 p50 | batch 1 p95 | batch 32 p50 / msg | batch 32 p95 / msg | disk MB | peak RSS MB |",

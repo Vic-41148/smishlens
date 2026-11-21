@@ -1,0 +1,38 @@
+{
+  "scope": "synthetic probe strings, CPU only; each arm in its own subprocess",
+  "note": "p50/p95 over repeated calls; batch 32 reports per-message time. Disk size is the model directory; RSS is peak VmRSS after load.",
+  "arms": {
+    "svm": {
+      "arm": "svm",
+      "device": "cpu",
+      "batch_1_ms": {
+        "p50": 2.8390620009304257,
+        "p95": 3.0149480007821694,
+        "n": 30
+      },
+      "batch_32_ms_per_message": {
+        "p50": 0.4389428750073421,
+        "p95": 0.44984162502714753,
+        "n_batches": 10
+      },
+      "disk_mb": 3.8495216369628906,
+      "rss_mb": 227.296875
+    },
+    "mmbert_base": {
+      "arm": "mmbert_base",
+      "device": "cpu",
+      "batch_1_ms": {
+        "p50": 54.2914550005662,
+        "p95": 59.095067999805906,
+        "n": 8
+      },
+      "batch_32_ms_per_message": {
+        "p50": 32.02314028129649,
+        "p95": 32.042220656251175,
+        "n_batches": 4
+      },
+      "disk_mb": 1205.9297742843628,
+      "rss_mb": 1609.8125
+    }
+  }
+}

@@ -283,6 +283,15 @@ Descriptive recall at the held-out source's own FPR (oracle threshold, not deplo
 | moz | baseline | 0.0000 | 0.0293 | 0.0678 |
 | moz | F3 | 0.0000 | 0.0000 | 0.1429 |
 
+## E17 — latency and footprint
+
+Synthetic probe strings, CPU only; each arm runs in its own subprocess:
+
+| arm | batch 1 p50 | batch 1 p95 | batch 32 p50 / msg | batch 32 p95 / msg | disk MB | peak RSS MB |
+|---|---:|---:|---:|---:|---:|---:|
+| svm | 2.84 ms | 3.01 ms | 0.44 ms | 0.45 ms | 3.8 | 227 |
+| mmBERT-base | 54.29 ms | 59.10 ms | 32.02 ms | 32.04 ms | 1205.9 | 1610 |
+
 ## Caveats
 
 - **E3 base vs E4 small are different sizes and settings.** E3 is
