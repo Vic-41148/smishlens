@@ -248,7 +248,9 @@ def build_final(C: float = 0.5, **feat_kw) -> Pipeline:
             (
                 "clf",
                 CalibratedClassifierCV(
-                    LinearSVC(C=C, class_weight="balanced", dual="auto"),
+                    # random_state pins liblinear's dual coordinate-descent
+                    # permutation; without it tau drifts ~1e-6 per retrain.
+                    LinearSVC(C=C, class_weight="balanced", dual="auto", random_state=42),
                     method="sigmoid",
                     cv=5,
                 ),

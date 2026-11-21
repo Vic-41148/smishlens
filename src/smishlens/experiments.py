@@ -39,7 +39,7 @@ SCORING = {
 METRICS = ("ap", "f1", "mcc", "roc_auc")
 
 # fixed, documented hyper-parameters: the ablation varies ONE thing at a time
-LR = LogisticRegression(C=1.0, max_iter=2000, class_weight="balanced")
+LR = LogisticRegression(C=1.0, max_iter=2000, class_weight="balanced", random_state=SEED)
 
 
 def _lr_pipe(feat_kw: dict) -> Pipeline:
@@ -73,8 +73,8 @@ E3 = [
     ("Dummy (prior)", DummyClassifier(strategy="prior")),
     ("MultinomialNB", MultinomialNB(alpha=0.1)),
     ("ComplementNB", ComplementNB(alpha=0.1)),
-    ("LogisticRegression", LogisticRegression(C=1.0, max_iter=2000, class_weight="balanced")),
-    ("LinearSVC", LinearSVC(C=0.5, class_weight="balanced", dual="auto")),
+    ("LogisticRegression", LogisticRegression(C=1.0, max_iter=2000, class_weight="balanced", random_state=SEED)),
+    ("LinearSVC", LinearSVC(C=0.5, class_weight="balanced", dual="auto", random_state=SEED)),
     (
         "RandomForest",
         RandomForestClassifier(

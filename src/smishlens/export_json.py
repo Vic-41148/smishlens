@@ -24,7 +24,7 @@ def fit_word_student(texts, y, C: float = 1.0, ngram_range=(1, 2), min_df: int =
         token_pattern=r"(?u)\b\w+\b",
     )
     X = vec.fit_transform([str(t) for t in texts])
-    clf = LinearSVC(C=C, class_weight="balanced", dual="auto").fit(X, y)
+    clf = LinearSVC(C=C, class_weight="balanced", dual="auto", random_state=42).fit(X, y)
     return vec, clf
 
 

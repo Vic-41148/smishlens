@@ -205,3 +205,52 @@ bootstrap 95% interval for recall is 0.946-1.000 and for precision 0.935-0.992
 alone. Conformal coverage on test is 0.948 (ham) / 0.977 (spam) at alpha = 0.05,
 consistent with the 95% target on this in-pool split. Coverage under a held-out
 source is the separate question RQ5 studies; nothing here establishes it.
+
+---
+
+## 2026-11-21 — determinism audit: liblinear was unseeded
+
+The v1.0-mvp test numbers in `reports/results/test_metrics.json` came from a
+`LinearSVC(dual="auto")` fit with **no `random_state`**. With 3,301 samples and
+27,429 features, `dual="auto"` selects liblinear's dual coordinate-descent solver,
+which permutes coordinates randomly on every fit. The score therefore moves by
+roughly 1e-6 between retrains, and so does `tau`, which is a quantile of the
+out-of-fold scores. This was found during the C5 fresh-clone check: the clone
+retrained `tau = 0.15136295402385722` against the reported `0.15136336820370772`.
+
+### What changed
+
+`random_state=42` (or `SEED`) added to every estimator that had one unset:
+
+| File | Estimator |
+|---|---|
+| `src/smishlens/features.py` | `LinearSVC` inside `CalibratedClassifierCV` (the production model) |
+| `src/smishlens/models.py` | `LinearSVC` and `LogisticRegression` in `GRIDS` |
+| `src/smishlens/experiments.py` | `LR` and the E3 `LinearSVC` |
+| `src/smishlens/export_json.py` | `LinearSVC` in the JSON student |
+
+Already seeded and left alone: every `StratifiedKFold(..., shuffle=True)` (42/`SEED`),
+`train_test_split` in `data.py` and `train.py`, `RandomForestClassifier` and
+`HistGradientBoostingClassifier`, `np.random.default_rng` in `conformal.py` and
+`evaluate.py`, `random.Random(seed)` in `attacks.py`. `CalibratedClassifierCV(cv=5)`
+takes the int form, which sklearn resolves to a **non-shuffled** stratified split, so
+it is deterministic without a seed. `train_mmbert.py` seeds the global NumPy RNG; it
+is not on the Tier 1 path and will be revisited at the G3 smoke test.
+
+### What was verified — train and calibration only, test not scored
+
+- Two consecutive seeded retrains produced **bit-identical** `tau`
+  (`0.15136301338984764`), identical `q_hat`, and identical calibration-split
+  probabilities (SHA-256 `447697e8251c02db6aee3eeec90a666dbf16a426375bb3de47f1c9fe4700bf94`
+  over the float64 probability vector).
+- E1/E2/E3 were regenerated on the train split and are **byte-identical** to the
+  committed `reports/results/tier1_*.csv`. No number moved, at 4 dp or below.
+
+### What was not done
+
+`final_eval.py` was **not** re-run and `reports/results/test_metrics.json` was **not**
+touched. The seeded `tau` differs from the reported one by 3.55e-7 absolute
+(2.34e-6 relative); the reported test metrics therefore stand as evaluated under the
+unseeded fit. No claim is made here about how many test decisions, if any, that
+difference would flip — that was not measured, and measuring it would mean scoring
+the test split again.

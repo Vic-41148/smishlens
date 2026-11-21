@@ -24,8 +24,14 @@ CV = StratifiedKFold(5, shuffle=True, random_state=42)
 GRIDS = {
     "mnb": (MultinomialNB(), {"clf__alpha": [0.01, 0.1, 0.5, 1.0]}),
     "cnb": (ComplementNB(), {"clf__alpha": [0.05, 0.1, 0.5, 1.0]}),
-    "lr": (LogisticRegression(max_iter=2000, class_weight="balanced"), {"clf__C": [0.5, 1, 5, 10, 50]}),
-    "svm": (LinearSVC(class_weight="balanced", dual="auto"), {"clf__C": [0.05, 0.1, 0.5, 1, 2, 5]}),
+    "lr": (
+        LogisticRegression(max_iter=2000, class_weight="balanced", random_state=42),
+        {"clf__C": [0.5, 1, 5, 10, 50]},
+    ),
+    "svm": (
+        LinearSVC(class_weight="balanced", dual="auto", random_state=42),
+        {"clf__C": [0.05, 0.1, 0.5, 1, 2, 5]},
+    ),
 }
 
 
