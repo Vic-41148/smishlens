@@ -710,3 +710,165 @@ Full detail is in `docs/HANDOFF.md`. Text-free summary:
   id and must not be widened without a new audit; `score_gold` writes
   `e6_gold.json`, so point the second pass at `e6_gold_v2.json`.
 
+---
+
+## 2026-11-21 — G3 mmBERT smoke test (6 GB card)
+
+First GPU run of `smishlens.train_mmbert`. Local checkpoints
+`models/mmBERT-base` and `models/mmBERT-small`; `HF_HUB_OFFLINE=1`, so no
+network access. Subset: 2,000 stratified train rows (1,705 positive / 295 ham),
+one epoch, `max_len=128`, `bs=16`, embeddings frozen, no gradient checkpointing.
+
+| model | peak VRAM | wall clock | s/step | tokens/s |
+|---|---:|---:|---:|---:|
+| mmBERT-base | **3.39 GiB** | 34.6 s | 0.277 | 2,435 |
+| mmBERT-small | **1.73 GiB** | 16.1 s | 0.129 | 5,225 |
+
+**G3 verdict: pass.** Base fits with ~2.4 GiB headroom on the 6 GB card.
+Extrapolation to the frozen train split (19,487 rows, 3 epochs, 3,654 steps):
+about **17 min per base fit** and **8 min per small fit**, before evaluation.
+That makes base-E3 plus small-E4 (five folds) feasible in about one hour.
+
+Decision: **base for the E3 headline, small for the five LOSO folds.** The
+training loop emits a benign scheduler-before-optimizer warning on the first
+GradScaler-skipped step; it is recorded here rather than changed mid-run.
+
+### E3 — mmBERT-base headline
+
+Trained on pool `train` (19,487 rows), calibrated on `cal` (4,870; `cal_a` fits
+temperature and tau, `cal_b` fits conformal), and the test split was scored once.
+Three epochs, `max_len=128`, `bs=16`, embeddings frozen, seed 42. Peak VRAM
+3.39 GiB; fitted `T=2.543`, `tau=0.9610`. Checkpoint:
+`artifacts/mmbert/e3_base/mmbert` (git-ignored), metadata beside it.
+
+| mmBERT-base, test | mode | n_pos | n_neg | recall | FPR | PR-AUC |
+|---|---|---:|---:|---:|---:|---:|
+| exais | fpr_only | 0 | 466 | — | 0.0129 | — |
+| imc25 | recall_only | 4,893 | 0 | 0.9826 | — | — |
+| mishra | both | 47 | 73 | 0.7872 | 0.0000 | 0.9864 |
+| moz | both | 109 | 357 | 0.9908 | 0.0112 | 0.9765 |
+| smishtank | recall_only | 145 | 0 | 0.9655 | — | — |
+| **macro (n=2)** | | | | **0.8890** | **0.0056** | **0.9814** |
+
+Against the classical svm headline on the same test split (macro 0.8098 /
+0.0097 / 0.9773), mmBERT-base gains 0.079 macro recall and 0.004 macro PR-AUC
+and cuts macro FPR by 0.004. Per source it gains on every recall-only fold and
+on Mishra recall, while MOZ PR-AUC slips slightly (0.9818 → 0.9765). ExAIS FPR
+is 0.0129 on test although the threshold was frozen at ≤1% on `cal_a`; that is
+the expected small-sample drift, not a tuning choice.
+
+### mmBERT provenance, thresholds and test hygiene (text only)
+
+Written while the E4 small run was still in progress. No new run was started for
+this note and no gold row was read.
+
+**Threshold provenance.**
+
+- **E3 base:** temperature `T` and `tau` come from `cal_a`, the first half of the
+  frozen `cal` split (stratified, seed 42). Conformal `q_hat` comes from
+  `cal_b`. No test row is used to fit `T`, `tau` or `q_hat`.
+- **E4 small:** in each fold, `T` and `tau` come from `cal_a` of the `cal` rows
+  that remain after removing the held-out source; `q_hat` comes from `cal_b` of
+  those rows. The held-out source is never in train or cal. No held-out row is
+  used to fit `T`, `tau` or `q_hat`.
+- Classical models keep their train-OOF threshold. mmBERT has no OOF pass, so
+  `cal_a` is the documented substitute. This is a deliberate protocol
+  deviation, not a test-derived threshold.
+
+**Test scoring.**
+
+- **E3 base:** the frozen pool test split was scored once, after training and
+  calibration were frozen. The reported numbers come from that one scoring.
+- **E4 small:** each held-out source is scored once per fold, at its frozen split
+  labels. No fold is re-scored or tuned after seeing its numbers.
+- **Plumbing check:** before the final runs, a throwaway 600-row subset (40 rows
+  per split/source, 1 epoch, `max_len=64`, small model) was scored to validate
+  the new code path. It was not a final model, was not used for any threshold or
+  selection, and its checkpoint was deleted. It is not a reported result.
+
+**Base/small assignment.**
+
+- **There is no train/cal performance rule that picked base for E3 and small for
+  E4.** The assignment is role/compute-based and was fixed before any test or
+  LOSO number: base is the headline/final model; small is the LOSO workhorse
+  because G3 measured 1.73 GiB and about twice the throughput (0.129 vs 0.277
+  s/step). The roadmap's §7.10 compute plan says small on every fold and base for
+  the headline/final model. We did not compare base vs small on test or LOSO and
+  then choose; no such comparison exists.
+- If a performance-based rule is wanted later, it must be defined on train/cal
+  evidence before the next test/LOSO look.
+
+**Checkpoints and reproducibility.**
+
+- **E3 base:** `artifacts/mmbert/e3_base/mmbert` (git-ignored). Manifest:
+  `artifacts/mmbert/e3_base/MANIFEST.sha256`. Model SHA256:
+  `8edbc7d9da486237d6ffdf27456e7845a5367b9daef6bc55930ab1422addcc3c`.
+  Metadata: `model_name=mmbert_base_temp_scaled`, seed 42, epochs 3,
+  `max_len=128`, `bs=16`, embeddings frozen, no gradient checkpointing,
+  train 19,487, cal 4,870, `T=2.543`, `tau=0.9610`.
+- **E4 small:** `artifacts/mmbert/e4_small/heldout_<source>/mmbert` per fold,
+  each with `MANIFEST.sha256` and `metadata.json`. Same seed 42, 3 epochs,
+  `max_len=128`, `bs=16`, frozen embeddings, no gradient checkpointing. All five
+  folds finished; per-fold hashes are in the E4 section below.
+- Source checkpoints: `models/mmBERT-base` and `models/mmBERT-small`, loaded
+  offline with `HF_HUB_OFFLINE=1`.
+
+**Gold.**
+
+- mmBERT never loaded or scored gold. `e6_gold.json` remains the untouched first
+  pass (`scored_once: true`); no `e6_gold_v2.json` exists.
+- Gold stays closed until the user writes the ~30 fresh messages. Then exactly
+  one pass, written to `e6_gold_v2.json`; the first pass is not overwritten.
+
+### E4 — five-fold LOSO, mmBERT-small vs classical svm
+
+Same five held-out folds for both models. Each fold trains on pool `train` rows
+without the held-out source, calibrates on `cal` rows without that source, and
+scores the held-out source once. mmBERT-small used `cal_a` for `T`/`tau` and
+`cal_b` for conformal; the classical svm keeps its train-OOF threshold. Macro is
+over the two both-class folds only (`mishra`, `moz`, n=2).
+
+| held out | mode | n_pos | n_neg | svm recall | small recall | svm FPR | small FPR | svm PR-AUC | small PR-AUC |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| imc25 | recall_only | 24,459 | 3 | 0.1550 | 0.4286 | — | — | — | — |
+| smishtank | recall_only | 726 | 0 | 0.7259 | 0.6460 | — | — | — | — |
+| mishra | both | 232 | 367 | 0.4871 | 0.4957 | 0.0245 | 0.0545 | 0.8616 | 0.7748 |
+| moz | both | 546 | 1,784 | 0.3187 | 0.7125 | 0.3111 | 0.3812 | 0.2329 | 0.3654 |
+| exais | fpr_only | 0 | 2,330 | — | — | 0.3811 | 0.2948 | — | — |
+| **macro (n=2)** | | | | **0.4029** | **0.6041** | **0.1678** | **0.2178** | **0.5473** | **0.5701** |
+
+Reading:
+
+- mmBERT-small raises macro recall by 0.201 and macro PR-AUC by 0.023, and pays
+  0.050 more macro FPR. The gain is concentrated in `moz` (recall 0.319 → 0.713,
+  PR-AUC 0.233 → 0.365) and `imc25` (0.155 → 0.429).
+- On `mishra`, recall is flat (0.487 → 0.496) and PR-AUC drops 0.087. On
+  `smishtank`, recall drops 0.080.
+- ExAIS FPR improves (0.381 → 0.295) but is still far above the 1% calibration
+  budget on both models. That is the LOSO shift the fold is meant to expose.
+- Both models are weak under source shift. mmBERT does not fix LOSO; it moves
+  the failure around. This is the honest E4 result, not a headline.
+
+Per-fold fit settings (all seed 42, 3 epochs, `max_len=128`, `bs=16`, embeddings
+frozen):
+
+| held out | train rows | cal rows | T | tau | model.safetensors SHA256 |
+|---|---:|---:|---:|---:|---|
+| exais | 17,996 | 4,497 | 1.796592 | 0.988252 | `276bfda1b977bb3f1e91168fe577211dcfae0540e1f92744486870a892d13867` |
+| imc25 | 3,830 | 958 | 4.060639 | 0.771195 | `2b08b83686d0167f0661cf3d66a291a69a19cc5c9767f598391d9a80e2b5619f` |
+| mishra | 19,104 | 4,774 | 2.039492 | 0.981982 | `e329118db1101f1a9e8b93dc5e93cfce46d816be98b6308c8f5cf4aeb003725a` |
+| moz | 17,996 | 4,497 | 2.529097 | 0.983906 | `c294086a9a4680c9ccb454f7774a5fbf38dcd7c1308b7b4dee45afa55bb4b7ce` |
+| smishtank | 19,022 | 4,754 | 2.359537 | 0.993047 | `dcd714a29e9777de78f979df8db64dbeeb122bc3f740c6b96b8a3aed635bb882` |
+
+Manifests: `artifacts/mmbert/e4_small/heldout_<source>/MANIFEST.sha256`
+(checkpoints git-ignored). Result:
+`reports/results/e4_loso_mmbert_small.json`. Classical comparison:
+`reports/results/e4_loso.json` (`svm` rows).
+
+Test hygiene: no fold was re-scored or re-tuned after its numbers were seen; no
+gold row was read. Gold stays closed.
+
+
+
+
+

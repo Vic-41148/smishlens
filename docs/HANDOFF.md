@@ -4,8 +4,9 @@ Text-free note. No SMS text, no gold messages, no raw rows.
 
 ## State
 
-- Branch `main`, last commit before this window: `6341d3c`
-  (`data(gold): add the 133-row synthetic gold holdout`).
+- Branch `main`, last commit before this window: `80b563d`
+  (`docs(results): record the ExAIS rebuild and Tier-2 rerun`). This window
+  adds the mmBERT wiring, its E3/E4 results, and the 58-row gold v2 holdout.
 - Frozen modern pool hash **`0bb9f4c85b6760d6`**, 30,447 rows,
   prevalence **0.8527** (25,963 positive / 4,484 ham).
 - Per source: imc25 24,462 (3 ham); mishra 599 (367 ham); moz 2,330 (1,784 ham);
@@ -13,9 +14,30 @@ Text-free note. No SMS text, no gold messages, no raw rows.
 - Splits: train 19,487 / cal 4,870 / test 6,090.
 - LOSO folds: `mishra` and `moz` both-class; `imc25` and `smishtank`
   recall-only; `exais` FPR-only. Both-class macro is **n = 2**.
-- `ruff check .` clean; full suite **123 passed**.
+- `ruff check .` clean; full suite **126 passed**.
 - Gold first pass is `reports/results/e6_gold.json`, mtime 2026-11-21
   14:15:53, `scored_once: true`. It was **not** re-run in this window.
+- Gold v2 holdout is `data/gold_holdout_v2.csv`: 58 synthetic rows, written by
+  Claude on the user's behalf, frozen before any model scored it. It is
+  committed separately and has not been scored yet.
+
+## mmBERT (G3, E3, E4)
+
+- G3 pass on the 6 GB card: base 3.39 GiB / 0.277 s per step; small 1.73 GiB /
+  0.129 s per step (2,000 rows, 1 epoch, `max_len=128`, `bs=16`, frozen
+  embeddings).
+- E3 headline, mmBERT-base, test scored once: macro **0.8890 recall / 0.0056
+  FPR / 0.9814 PR-AUC** (classical svm: 0.8098 / 0.0097 / 0.9773). `T=2.543`,
+  `tau=0.9610`, both from `cal_a`; conformal from `cal_b`.
+- E4 LOSO, mmBERT-small, five folds: macro **0.6041 / 0.2178 / 0.5701**
+  (classical svm: 0.4029 / 0.1678 / 0.5473). ExAIS FPR 0.2948 (svm 0.3811).
+  Both models are weak under source shift; the gain is concentrated in moz and
+  imc25.
+- Base/small assignment is role/compute-based (G3 memory and throughput plus the
+  roadmap compute plan), fixed before any test or LOSO number. No train/cal
+  performance rule exists.
+- Checkpoints under `artifacts/mmbert/` are git-ignored; hashes are in
+  `reports/verification_log.md`.
 
 ## Committed vs local-only
 
@@ -27,6 +49,8 @@ Committed (after this window):
   `data_audit.json`, `label_overrides.json`, `dedup_exclusions.json`.
 - Tests, results JSONs (including `reports/results/pre_exais/`), data cards,
   `reports/verification_log.md`, this file.
+- Gold holdouts: `data/gold_holdout.csv` (133 rows, v1) and
+  `data/gold_holdout_v2.csv` (58 rows, v2). Both fully synthetic.
 
 Local-only / git-ignored:
 
@@ -41,9 +65,10 @@ Rebuild with `make data`; it loads `label_overrides.json` and
 
 ## Open decisions
 
-- The user writes about **30 fresh gold messages**. Then run **one second gold
-  pass** and keep it next to the first. The first pass stays untouched; any
-  second pass must write `e6_gold_v2.json`.
+- The 58-row gold v2 holdout exists and is frozen. The next step is **one**
+  second gold pass writing `reports/results/e6_gold_v2.json`; `e6_gold.json`
+  stays untouched. Gold v1 was scored before the ExAIS change, so it is no
+  longer pristine for that decision; v2 is.
 - Do not widen `dedup_exclusions.json` from another source without a new
   pairwise audit. The current list is audited, not exhaustive.
 - Keep the both-class macro at n = 2. ExAIS is FPR-only; never fold it into a
@@ -51,11 +76,11 @@ Rebuild with `make data`; it loads `label_overrides.json` and
 
 ## Next work
 
-1. mmBERT on the frozen pool (small for LOSO, base for the headline/final fit;
-   see the G3 memory note).
-2. E7–E14 (evasion suite, held-out-family arms, URL-masked arm, error analysis,
-   WSPR OOD, etc. — follow the roadmap order).
-3. Re-run E3/E4 only if the pool changes; otherwise reuse these results.
+1. Phase 1 (current): one gold v2 pass, E13 calibration, E12 PPV, E14 conformal,
+   RQ1 gap write-up.
+2. Phase 2: evasion E7–E10 and the Hinglish slice E11.
+3. Phase 3: serving, packaging and the live URL.
+4. Re-run E3/E4 only if the pool changes; otherwise reuse these results.
 
 ## Caveats
 
@@ -97,13 +122,13 @@ PYTHONPATH=src .venv/bin/python -m pytest -q
   (model, fold). Threaded liblinear shares RNG state; two threaded runs differed
   (~1e-6 in PR-AUC/tau). The default `--n-jobs 6` is the process path.
 - **E4 is slow:** about 20 minutes on this machine with the new pool (per-CV
-  vectoriser, 5 folds × 5 models). The old 9-minute estimate is stale.
+  vectoriser, 5 folds × 5 models). The old 9-minute estimate is stale. The
+  mmBERT-small E4 arm is five fine-tunes and takes ~35–40 minutes on the GPU.
 - **Exclusion list:** applied at the UCI-overlap stage, before exact/near
   counts. Every id must be present or the build raises (stale list). The audit
   records `n`, `applied`, `reason`, `row_ids`.
-- **Gold output path:** `score_gold` writes `e6_gold.json` directly. For the
-  second pass, change the path to `e6_gold_v2.json` (or move v1 aside first);
-  do not overwrite the first pass.
+- **Gold output path:** `score_gold` writes `e6_gold.json` directly. The second
+  pass must point at `e6_gold_v2.json`; never overwrite the first pass.
 - **Hardcoded-36 test:** recomputes the pre-UCI frame from raw and skips when
   raw/processed data is absent. It takes ~30–60 s locally.
 - **`data/apply_audit.py --apply`** also loads `dedup_exclusions.json`, so a

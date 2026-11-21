@@ -1,0 +1,113 @@
+{
+  "note": "pool prevalence is positive-heavy; IMC'25 dominates the rows and has only 3 ham, so no pool-level accuracy or F1 is a headline; FPR is reported on the both-class sources (mishra, moz) and separately on the exais ham-only fold; imc25 and smishtank report recall only; exais never enters a both-class macro",
+  "scope": "mmBERT headline arm; trained on pool train, calibrated on cal, scored once on pool test",
+  "model": "mmbert_base",
+  "model_path": "/home/vic/Projects/smishlens/models/mmBERT-base",
+  "selection": "roadmap-fixed headline; no train-OOF pass exists for a transformer, so it is not part of the classical SEL",
+  "threshold": {
+    "tau": 0.9609955853565144,
+    "cost_tau": 0.9671281390396984,
+    "policy": "max recall s.t. FPR <= 0.01 on cal_a"
+  },
+  "calibration": {
+    "method": "temperature",
+    "T": 2.542973587720209
+  },
+  "versions": {
+    "torch": "2.14.1+cu130",
+    "transformers": "5.23.0"
+  },
+  "n_train": 19487,
+  "n_cal": 4870,
+  "n_test": 6090,
+  "rows": [
+    {
+      "experiment": "E3",
+      "model": "mmbert_base",
+      "source": "exais",
+      "mode": "fpr_only",
+      "tau": 0.9609955853565144,
+      "cost_tau": 0.9671281390396984,
+      "n_pos": 0,
+      "n_neg": 466,
+      "fpr": 0.012875536480686695,
+      "fpr_cost": 0.01072961373390558
+    },
+    {
+      "experiment": "E3",
+      "model": "mmbert_base",
+      "source": "imc25",
+      "mode": "recall_only",
+      "tau": 0.9609955853565144,
+      "cost_tau": 0.9671281390396984,
+      "n_pos": 4893,
+      "n_neg": 0,
+      "recall": 0.9826282444308195,
+      "recall_cost": 0.9799713876967096
+    },
+    {
+      "experiment": "E3",
+      "model": "mmbert_base",
+      "source": "mishra",
+      "mode": "both",
+      "tau": 0.9609955853565144,
+      "cost_tau": 0.9671281390396984,
+      "n_pos": 47,
+      "n_neg": 73,
+      "recall": 0.7872340425531915,
+      "fpr": 0.0,
+      "pr_auc": 0.9863613092702772,
+      "roc_auc": 0.990090352666861,
+      "ppv_5pct": 1.0,
+      "ppv_10pct": 1.0,
+      "ppv_20pct": 1.0,
+      "recall_cost": 0.7872340425531915,
+      "fpr_cost": 0.0
+    },
+    {
+      "experiment": "E3",
+      "model": "mmbert_base",
+      "source": "moz",
+      "mode": "both",
+      "tau": 0.9609955853565144,
+      "cost_tau": 0.9671281390396984,
+      "n_pos": 109,
+      "n_neg": 357,
+      "recall": 0.9908256880733946,
+      "fpr": 0.011204481792717087,
+      "pr_auc": 0.9765007997677289,
+      "roc_auc": 0.9960296045023515,
+      "ppv_5pct": 0.8231426131511528,
+      "ppv_10pct": 0.9076271186440678,
+      "ppv_20pct": 0.9567245657568239,
+      "recall_cost": 0.981651376146789,
+      "fpr_cost": 0.011204481792717087
+    },
+    {
+      "experiment": "E3",
+      "model": "mmbert_base",
+      "source": "smishtank",
+      "mode": "recall_only",
+      "tau": 0.9609955853565144,
+      "cost_tau": 0.9671281390396984,
+      "n_pos": 145,
+      "n_neg": 0,
+      "recall": 0.9655172413793104,
+      "recall_cost": 0.9655172413793104
+    },
+    {
+      "experiment": "E3",
+      "model": "mmbert_base",
+      "source": "macro",
+      "mode": "macro",
+      "n_folds": 2,
+      "macro_recall": 0.8890298653132931,
+      "macro_fpr": 0.0056022408963585435,
+      "macro_pr_auc": 0.981431054519003,
+      "macro_roc_auc": 0.9930599785846062,
+      "macro_ppv_5pct": 0.9115713065755764,
+      "macro_ppv_10pct": 0.9538135593220338,
+      "macro_ppv_20pct": 0.978362282878412
+    }
+  ]
+}
