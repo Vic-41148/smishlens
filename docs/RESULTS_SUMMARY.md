@@ -176,6 +176,24 @@ E10 (pool test; link-less spam has no negatives, so FPR is undefined):
 | mmBERT-base | url_masked | 6,090 | 0.9790 | 0.0145 |
 | mmBERT-base | spam_linkless | 5,016 | 0.9805 | — |
 
+**The pool-wide evasion number is dominated by `imc25`,** which supplies about 94% of test spam. Read the per-source table below before quoting a single evasion figure.
+
+
+Per-source E7/E8/E10 spam recall (imc25 is about 94% of test spam):
+
+| model | source | n spam | E7 off | E8 on | leet off | leet on | E10 linkless |
+|---|---|---:|---:|---:|---:|---:|---:|
+| svm | imc25 | 4,893 | 0.9716 | 0.9753 | 0.8029 | 0.8532 | 0.9750 |
+| svm | mishra | 47 | 0.5319 | 0.7021 | 0.3901 | 0.6099 | 0.6667 |
+| svm | moz | 109 | 0.8440 | 0.9174 | 0.1621 | 0.3456 | 0.9174 |
+| svm | smishtank | 145 | 0.7448 | 0.9034 | 0.5586 | 0.7609 | 0.7308 |
+| mmBERT-base | imc25 | 4,893 | 0.9826 | 0.9826 | 0.9662 | 0.9671 | 0.9825 |
+| mmBERT-base | mishra | 47 | 0.8085 | 0.7872 | 0.7234 | 0.7234 | 0.7576 |
+| mmBERT-base | moz | 109 | 0.9908 | 0.9908 | 0.2049 | 0.2049 | 0.9908 |
+| mmBERT-base | smishtank | 145 | 0.9655 | 0.9655 | 0.9517 | 0.9517 | 0.8462 |
+
+Normaliser cost: on svm, turning the normaliser ON raises clean spam recall 0.9586 → 0.9696 and raises the FPR 0.0134 → 0.0201. The gain is bought with roughly 0.7 extra false positives per 100 ham.
+
 ## F1-F5 — svm-only fixes under LOSO (no gold)
 
 Success rule, fixed before the run: macro LOSO FPR at the arm's own frozen 1% threshold must fall by at least 0.05 versus the baseline, while macro LOSO PR-AUC may fall by at most 0.02. Every arm is reported, including failures.
@@ -228,6 +246,42 @@ F5 — EM prior diagnostic (assumes `p(x|y)` fixed; a diagnostic, not a fix, and
 | mishra | 0.3873 | 0.8620 | 0.3895 | 0.4871 / 0.0245 | 0.4871 / 0.0245 |
 | moz | 0.2343 | 0.9039 | 1.0000 | 0.3187 / 0.3111 | 0.3187 / 0.3111 |
 | exais | 0.0000 | 0.9233 | 0.8274 | — / 0.3811 | — / 0.3811 |
+
+F1 reading (templated from the JSON):
+
+- On `moz`, 538 of 555 baseline false positives (96.94%) are chatty; 9/11 promo and 5/5 bank-OTP ham are flagged.
+- On `exais`, transactional ham FPR is 0.7905 (249/315) and bank-OTP ham FPR is 0.6923 (27/39).
+- Language check: source metadata plus a stopword heuristic (not a language-ID model). Declared: `moz` is 100.00% `pt`, `exais` is 100.00% `en`, `mishra` carries no language tag. By the text heuristic `moz` is 18.54% en / 0.13% hinglish / 81.33% other; the `other` bucket also catches very short messages, so it is not a pure non-English flag. Ham FPR by bucket is `en` 0.1445 (38/263), `hinglish` 0.6667 (2/3), `other` 0.3393 (515/1,518); the largest bucket is `other` at 0.3393. `exais` ham FPR by language is `en` 0.3830 (671/1,752), `hinglish` 1.0000 (1/1), `other` 0.3744 (216/577).
+
+F3 diagnosis (post-hoc, not adopted):
+
+| source | baseline PR-AUC | F3 PR-AUC | baseline tau | F3 tau |
+|---|---:|---:|---:|---:|
+| mishra | 0.8616 | 0.9276 | 0.4088 | 0.5424 |
+| moz | 0.2329 | 0.4405 | 0.4736 | 0.6496 |
+| exais | — | — | 0.5714 | 0.4750 |
+
+How the threshold is computed: the weights are applied when fitting every OOF fold and the final model, so OOF scores come from weighted models. The 1% quantile is then an **unweighted** empirical FPR over all train OOF rows, the same rule as E3/E4. Weights are not applied to the quantile.
+
+Weighted-quantile alternative (diagnostic only, not deployable):
+
+| source | recall at unweighted tau | recall at weighted tau | realised FPR at weighted tau |
+|---|---:|---:|---:|
+| mishra | 0.0733 | 0.3060 | 0.0054 |
+| moz | 0.0000 | 0.0000 | 0.0185 |
+
+- On `mishra` the collapse **is** a threshold artifact: the weighted quantile recovers 0.2328 recall at a realised FPR of 0.0054.
+- On `moz` it is **not**: recall stays 0.0000 at a realised FPR of 0.0185. That fold is a score-scale/ranking failure, not a quantile mismatch.
+- The weights are applied consistently in fitting and OOF scoring, so this is a threshold-rule mismatch plus a `moz` ranking failure, not a fitting bug. Either way F3 is not a fix.
+
+Descriptive recall at the held-out source's own FPR (oracle threshold, not deployable):
+
+| source | arm | recall@1% FPR | recall@5% FPR | recall@10% FPR |
+|---|---|---:|---:|---:|
+| mishra | baseline | 0.3534 | 0.5991 | 0.7112 |
+| mishra | F3 | 0.8491 | 0.8534 | 0.8707 |
+| moz | baseline | 0.0000 | 0.0293 | 0.0678 |
+| moz | F3 | 0.0000 | 0.0000 | 0.1429 |
 
 ## Caveats
 
@@ -288,6 +342,5 @@ F5 — EM prior diagnostic (assumes `p(x|y)` fixed; a diagnostic, not a fix, and
   collapses on `moz` and realised FPR stays above 1%.
 - **Does the normaliser help?** It helps svm most on leetspeak and
   homoglyphs; mmBERT-base is less sensitive.
-- **Did any F arm pass the success rule?** Read the success column in the
-  F table; failures are reported there too.
+- **Did any F arm pass the success rule?** No arm is a fix. `F3` (source-class-balanced) passes the letter of the rule only through a collapsed recall (0.0366 against the baseline 0.4029). The post-hoc check splits the collapse: on `mishra` it is an unweighted-quantile artifact, while on `moz` recall stays at 0.0000 even with a weighted quantile, so that fold is a ranking failure. `format_masked` does not pass. Every arm is reported, including failures.
 

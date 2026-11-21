@@ -1,0 +1,437 @@
+{
+  "language": {
+    "method": "stopword heuristic (English function words and Hinglish markers), not a language-ID model; counts only. The `other` bucket also catches very short messages with no function words, so it is not a pure non-English flag.",
+    "declared_shares": {
+      "exais": {
+        "n": 2330,
+        "top": {
+          "en": {
+            "n": 2330,
+            "share": 1.0
+          }
+        }
+      },
+      "imc25": {
+        "n": 24462,
+        "top": {
+          "en": {
+            "n": 15391,
+            "share": 0.6291799525795111
+          },
+          "spanish": {
+            "n": 3245,
+            "share": 0.1326547297849726
+          },
+          "dutch": {
+            "n": 1570,
+            "share": 0.06418117897146594
+          },
+          "french": {
+            "n": 879,
+            "share": 0.03593328427765514
+          }
+        }
+      },
+      "mishra": {
+        "n": 599,
+        "top": {
+          "unlabelled": {
+            "n": 599,
+            "share": 1.0
+          }
+        }
+      },
+      "moz": {
+        "n": 2330,
+        "top": {
+          "pt": {
+            "n": 2330,
+            "share": 1.0
+          }
+        }
+      },
+      "smishtank": {
+        "n": 726,
+        "top": {
+          "unlabelled": {
+            "n": 726,
+            "share": 1.0
+          }
+        }
+      }
+    },
+    "shares": {
+      "exais": {
+        "n": 2330,
+        "en": {
+          "n": 1752,
+          "share": 0.751931330472103
+        },
+        "hinglish": {
+          "n": 1,
+          "share": 0.00042918454935622315
+        },
+        "other": {
+          "n": 577,
+          "share": 0.24763948497854077
+        }
+      },
+      "imc25": {
+        "n": 24462,
+        "en": {
+          "n": 16181,
+          "share": 0.6614749407243888
+        },
+        "hinglish": {
+          "n": 57,
+          "share": 0.0023301447142506744
+        },
+        "other": {
+          "n": 8224,
+          "share": 0.33619491456136047
+        }
+      },
+      "mishra": {
+        "n": 599,
+        "en": {
+          "n": 546,
+          "share": 0.9115191986644408
+        },
+        "hinglish": {
+          "n": 2,
+          "share": 0.00333889816360601
+        },
+        "other": {
+          "n": 51,
+          "share": 0.08514190317195326
+        }
+      },
+      "moz": {
+        "n": 2330,
+        "en": {
+          "n": 432,
+          "share": 0.1854077253218884
+        },
+        "hinglish": {
+          "n": 3,
+          "share": 0.0012875536480686696
+        },
+        "other": {
+          "n": 1895,
+          "share": 0.8133047210300429
+        }
+      },
+      "smishtank": {
+        "n": 726,
+        "en": {
+          "n": 651,
+          "share": 0.8966942148760331
+        },
+        "hinglish": {
+          "n": 3,
+          "share": 0.004132231404958678
+        },
+        "other": {
+          "n": 72,
+          "share": 0.09917355371900827
+        }
+      }
+    },
+    "baseline_loso_fpr_by_language": {
+      "mishra": {
+        "en": {
+          "n_ham": 325,
+          "n_flagged": 9,
+          "fpr": 0.027692307692307693
+        },
+        "other": {
+          "n_ham": 42,
+          "n_flagged": 0,
+          "fpr": 0.0
+        }
+      },
+      "moz": {
+        "en": {
+          "n_ham": 263,
+          "n_flagged": 38,
+          "fpr": 0.1444866920152091
+        },
+        "hinglish": {
+          "n_ham": 3,
+          "n_flagged": 2,
+          "fpr": 0.6666666666666666
+        },
+        "other": {
+          "n_ham": 1518,
+          "n_flagged": 515,
+          "fpr": 0.33926218708827405
+        }
+      },
+      "exais": {
+        "en": {
+          "n_ham": 1752,
+          "n_flagged": 671,
+          "fpr": 0.3829908675799087
+        },
+        "hinglish": {
+          "n_ham": 1,
+          "n_flagged": 1,
+          "fpr": 1.0
+        },
+        "other": {
+          "n_ham": 577,
+          "n_flagged": 216,
+          "fpr": 0.37435008665511266
+        }
+      }
+    }
+  },
+  "f3": {
+    "note": "post-hoc exploratory; no arm is adopted. Source-class weights are applied when fitting every OOF fold and the final model. The 1% quantile is an UNWEIGHTED empirical FPR over all train OOF rows, which is the same rule used by E3/E4.",
+    "weights": {
+      "applied_in_fit": true,
+      "applied_in_oof_scores": true,
+      "applied_in_threshold_quantile": false,
+      "threshold_rule": "max recall s.t. unweighted empirical FPR <= 0.01 over all train OOF rows",
+      "weight_definition": "1 / rows in the (source, class) cell"
+    },
+    "folds": {
+      "mishra": {
+        "baseline": {
+          "mode": "both",
+          "tau": 0.40876556688181187,
+          "n_pos": 232,
+          "n_neg": 367,
+          "recall": 0.4870689655172414,
+          "fpr": 0.02452316076294278,
+          "pr_auc": 0.8616483266498746,
+          "descriptive_at_test_fpr": {
+            "1": {
+              "target_fpr": 0.01,
+              "tau": 0.6779251487432588,
+              "recall": 0.35344827586206895,
+              "realised_fpr": 0.008174386920980926
+            },
+            "5": {
+              "target_fpr": 0.05,
+              "tau": 0.2362954132244356,
+              "recall": 0.5991379310344828,
+              "realised_fpr": 0.04904632152588556
+            },
+            "10": {
+              "target_fpr": 0.1,
+              "tau": 0.0454414790282372,
+              "recall": 0.7112068965517241,
+              "realised_fpr": 0.08991825613079019
+            }
+          }
+        },
+        "source_class_balanced": {
+          "mode": "both",
+          "tau": 0.5423842040369165,
+          "n_pos": 232,
+          "n_neg": 367,
+          "recall": 0.07327586206896551,
+          "fpr": 0.0,
+          "pr_auc": 0.9275571656514446,
+          "descriptive_at_test_fpr": {
+            "1": {
+              "target_fpr": 0.01,
+              "tau": 0.15913872181293792,
+              "recall": 0.8491379310344828,
+              "realised_fpr": 0.008174386920980926
+            },
+            "5": {
+              "target_fpr": 0.05,
+              "tau": -0.032936729326411396,
+              "recall": 0.853448275862069,
+              "realised_fpr": 0.01907356948228883
+            },
+            "10": {
+              "target_fpr": 0.1,
+              "tau": -0.06753089483048164,
+              "recall": 0.8706896551724138,
+              "realised_fpr": 0.07629427792915532
+            }
+          },
+          "weighted_oof_threshold": {
+            "tau": 0.308774406463609,
+            "weighted_oof_tpr": 0.40552166830087527,
+            "weighted_oof_fpr": 0.009954844850382701,
+            "test_recall": 0.30603448275862066,
+            "test_fpr": 0.005449591280653951
+          }
+        }
+      },
+      "moz": {
+        "baseline": {
+          "mode": "both",
+          "tau": 0.4736325599320801,
+          "n_pos": 546,
+          "n_neg": 1784,
+          "recall": 0.31868131868131866,
+          "fpr": 0.31109865470852016,
+          "pr_auc": 0.23287409378501928,
+          "descriptive_at_test_fpr": {
+            "1": {
+              "target_fpr": 0.01,
+              "tau": 1.4453339744885834,
+              "recall": 0.0,
+              "realised_fpr": 0.0005605381165919282
+            },
+            "5": {
+              "target_fpr": 0.05,
+              "tau": 0.897542373968501,
+              "recall": 0.029304029304029304,
+              "realised_fpr": 0.04708520179372197
+            },
+            "10": {
+              "target_fpr": 0.1,
+              "tau": 0.7389550205181102,
+              "recall": 0.06776556776556776,
+              "realised_fpr": 0.09865470852017937
+            }
+          }
+        },
+        "source_class_balanced": {
+          "mode": "both",
+          "tau": 0.6496292120589324,
+          "n_pos": 546,
+          "n_neg": 1784,
+          "recall": 0.0,
+          "fpr": 0.0011210762331838565,
+          "pr_auc": 0.44053035821237235,
+          "descriptive_at_test_fpr": {
+            "1": {
+              "target_fpr": 0.01,
+              "tau": 0.7421623283914531,
+              "recall": 0.0,
+              "realised_fpr": 0.0005605381165919282
+            },
+            "5": {
+              "target_fpr": 0.05,
+              "tau": 0.7421623283914531,
+              "recall": 0.0,
+              "realised_fpr": 0.0005605381165919282
+            },
+            "10": {
+              "target_fpr": 0.1,
+              "tau": 0.22889864643385954,
+              "recall": 0.14285714285714285,
+              "realised_fpr": 0.09753363228699552
+            }
+          },
+          "weighted_oof_threshold": {
+            "tau": 0.38890491520135384,
+            "weighted_oof_tpr": 0.3484314090670532,
+            "weighted_oof_fpr": 0.009836798569192933,
+            "test_recall": 0.0,
+            "test_fpr": 0.018497757847533634
+          }
+        }
+      },
+      "exais": {
+        "baseline": {
+          "mode": "fpr_only",
+          "tau": 0.5714008885345423,
+          "n_pos": 0,
+          "n_neg": 2330,
+          "recall": null,
+          "fpr": 0.3811158798283262,
+          "pr_auc": null,
+          "descriptive_at_test_fpr": {
+            "1": {
+              "target_fpr": 0.01,
+              "tau": 2.4005004692201948,
+              "recall": null,
+              "realised_fpr": 0.00042918454935622315
+            },
+            "5": {
+              "target_fpr": 0.05,
+              "tau": 2.4005004692201948,
+              "recall": null,
+              "realised_fpr": 0.00042918454935622315
+            },
+            "10": {
+              "target_fpr": 0.1,
+              "tau": 2.4005004692201948,
+              "recall": null,
+              "realised_fpr": 0.00042918454935622315
+            }
+          }
+        },
+        "source_class_balanced": {
+          "mode": "fpr_only",
+          "tau": 0.47495929776924845,
+          "n_pos": 0,
+          "n_neg": 2330,
+          "recall": null,
+          "fpr": 0.14420600858369098,
+          "pr_auc": null,
+          "descriptive_at_test_fpr": {
+            "1": {
+              "target_fpr": 0.01,
+              "tau": 1.0723968887524538,
+              "recall": null,
+              "realised_fpr": 0.00042918454935622315
+            },
+            "5": {
+              "target_fpr": 0.05,
+              "tau": 1.0723968887524538,
+              "recall": null,
+              "realised_fpr": 0.00042918454935622315
+            },
+            "10": {
+              "target_fpr": 0.1,
+              "tau": 1.0723968887524538,
+              "recall": null,
+              "realised_fpr": 0.00042918454935622315
+            }
+          },
+          "weighted_oof_threshold": {
+            "tau": 0.44546405535942296,
+            "weighted_oof_tpr": 0.5283850423606972,
+            "weighted_oof_fpr": 0.009883121561028928,
+            "test_recall": null,
+            "test_fpr": 0.17124463519313304
+          }
+        }
+      }
+    },
+    "macro": {
+      "baseline": {
+        "macro_recall": 0.40287514209928,
+        "macro_fpr": 0.16781090773573148,
+        "macro_pr_auc": 0.5472612102174469
+      },
+      "source_class_balanced": {
+        "macro_recall": 0.036637931034482756,
+        "macro_fpr": 0.0005605381165919282,
+        "macro_pr_auc": 0.6840437619319085
+      },
+      "delta_fpr": -0.16725036961913956,
+      "delta_pr_auc": 0.13678255171446163
+    },
+    "per_fold_recovery_from_weighted_quantile": {
+      "mishra": {
+        "unweighted_tau_test_recall": 0.07327586206896551,
+        "weighted_tau_test_recall": 0.30603448275862066,
+        "recovered": 0.23275862068965514,
+        "weighted_tau_test_fpr": 0.005449591280653951
+      },
+      "moz": {
+        "unweighted_tau_test_recall": 0.0,
+        "weighted_tau_test_recall": 0.0,
+        "recovered": 0.0,
+        "weighted_tau_test_fpr": 0.018497757847533634
+      }
+    },
+    "weighted_quantile_alternative": {
+      "macro_recall": 0.15301724137931033,
+      "macro_fpr": 0.011973674564093793,
+      "note": "diagnostic only; it weights the quantile, not a deployable rule"
+    },
+    "verdict": "Both, and the split is per fold. On `mishra` the collapse is a threshold artifact: an unweighted OOF quantile applied to scores from a weighted model; a weighted quantile recovers 0.2328 recall there. On `moz` it is NOT a threshold artifact: recall stays 0.0000 at a realised FPR of 0.0185, so that fold is a score-scale/ranking failure. The weights are applied consistently in fitting and OOF scoring; only the quantile is unweighted, the same rule as E3/E4. Either way F3 is not a fix.",
+    "scores_file": "artifacts/diagnostics/loso_scores.csv (local, untracked)"
+  }
+}

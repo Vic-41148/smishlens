@@ -298,6 +298,161 @@ def f_tables(f: dict) -> list[str]:
     return lines
 
 
+def f1_language_lines(f: dict, lang: dict) -> list[str]:
+    moz = f["f1_fp_by_ham_category"]["moz"]
+    exais = f["f1_fp_by_ham_category"]["exais"]
+    total = moz["total"]["n_flagged"]
+    chatty = moz["chatty"]["n_flagged"]
+    share = chatty / total if total else float("nan")
+    moz_lang = lang["language"]["baseline_loso_fpr_by_language"]["moz"]
+    exais_lang = lang["language"]["baseline_loso_fpr_by_language"]["exais"]
+    shares = lang["language"]["shares"]["moz"]
+    solid = {k: v for k, v in moz_lang.items() if v["n_ham"] >= 30}
+    best = max(solid.items(), key=lambda kv: kv[1]["fpr"] or 0.0)
+    lines = [
+        "",
+        "F1 reading (templated from the JSON):",
+        "",
+        f"- On `moz`, {chatty:,} of {total:,} baseline false positives "
+        f"({pct(share)}) are chatty; {moz['promo']['n_flagged']:,}/"
+        f"{moz['promo']['n_ham']:,} promo and {moz['bank_otp']['n_flagged']:,}/"
+        f"{moz['bank_otp']['n_ham']:,} bank-OTP ham are flagged.",
+        f"- On `exais`, transactional ham FPR is "
+        f"{num(exais['transactional']['fpr'])} ({exais['transactional']['n_flagged']:,}/"
+        f"{exais['transactional']['n_ham']:,}) and bank-OTP ham FPR is "
+        f"{num(exais['bank_otp']['fpr'])} ({exais['bank_otp']['n_flagged']:,}/"
+        f"{exais['bank_otp']['n_ham']:,}).",
+        f"- Language check: source metadata plus a stopword heuristic (not a "
+        f"language-ID model). Declared: `moz` is "
+        f"{pct(lang['language']['declared_shares']['moz']['top'].get('pt', {}).get('share', 0))} "
+        f"`pt`, `exais` is "
+        f"{pct(lang['language']['declared_shares']['exais']['top'].get('en', {}).get('share', 0))} "
+        f"`en`, `mishra` carries no language tag. By the text heuristic `moz` "
+        f"is {pct(shares['en']['share'])} en / {pct(shares['hinglish']['share'])} "
+        f"hinglish / {pct(shares['other']['share'])} other; the `other` bucket "
+        f"also catches very short messages, so it is not a pure non-English "
+        f"flag. Ham FPR by bucket is "
+        + ", ".join(
+            f"`{name}` {num(row['fpr'])} ({row['n_flagged']:,}/{row['n_ham']:,})"
+            for name, row in sorted(moz_lang.items())
+        )
+        + f"; the largest bucket is `{best[0]}` at {num(best[1]['fpr'])}"
+        + ". `exais` ham FPR by language is "
+        + ", ".join(
+            f"`{name}` {num(row['fpr'])} ({row['n_flagged']:,}/{row['n_ham']:,})"
+            for name, row in sorted(exais_lang.items())
+        )
+        + ".",
+    ]
+    return lines
+
+
+def f3_lines(f3: dict) -> list[str]:
+    folds = f3["folds"]
+    rec = f3["per_fold_recovery_from_weighted_quantile"]
+    lines = [
+        "",
+        "F3 diagnosis (post-hoc, not adopted):",
+        "",
+        "| source | baseline PR-AUC | F3 PR-AUC | baseline tau | F3 tau |",
+        "|---|---:|---:|---:|---:|",
+    ]
+    for held in ("mishra", "moz", "exais"):
+        base = folds[held]["baseline"]
+        f3_row = folds[held]["source_class_balanced"]
+        lines.append(
+            f"| {held} | {num(base['pr_auc'])} | {num(f3_row['pr_auc'])} | "
+            f"{num(base['tau'])} | {num(f3_row['tau'])} |"
+        )
+    lines += [
+        "",
+        "How the threshold is computed: the weights are applied when fitting "
+        "every OOF fold and the final model, so OOF scores come from weighted "
+        "models. The 1% quantile is then an **unweighted** empirical FPR over "
+        "all train OOF rows, the same rule as E3/E4. Weights are not applied "
+        "to the quantile.",
+        "",
+        "Weighted-quantile alternative (diagnostic only, not deployable):",
+        "",
+        "| source | recall at unweighted tau | recall at weighted tau | realised FPR at weighted tau |",
+        "|---|---:|---:|---:|",
+    ]
+    for held in ("mishra", "moz"):
+        lines.append(
+            f"| {held} | {num(rec[held]['unweighted_tau_test_recall'])} | "
+            f"{num(rec[held]['weighted_tau_test_recall'])} | "
+            f"{num(rec[held]['weighted_tau_test_fpr'])} |"
+        )
+    lines += [
+        "",
+        f"- On `mishra` the collapse **is** a threshold artifact: the weighted "
+        f"quantile recovers {num(rec['mishra']['recovered'])} recall at a "
+        f"realised FPR of {num(rec['mishra']['weighted_tau_test_fpr'])}.",
+        f"- On `moz` it is **not**: recall stays "
+        f"{num(rec['moz']['weighted_tau_test_recall'])} at a realised FPR of "
+        f"{num(rec['moz']['weighted_tau_test_fpr'])}. That fold is a "
+        "score-scale/ranking failure, not a quantile mismatch.",
+        "- The weights are applied consistently in fitting and OOF scoring, so "
+        "this is a threshold-rule mismatch plus a `moz` ranking failure, not a "
+        "fitting bug. Either way F3 is not a fix.",
+        "",
+        "Descriptive recall at the held-out source's own FPR (oracle threshold, "
+        "not deployable):",
+        "",
+        "| source | arm | recall@1% FPR | recall@5% FPR | recall@10% FPR |",
+        "|---|---|---:|---:|---:|",
+    ]
+    for held in ("mishra", "moz"):
+        for label, key in (("baseline", "baseline"), ("F3", "source_class_balanced")):
+            row = folds[held][key]["descriptive_at_test_fpr"]
+            lines.append(
+                f"| {held} | {label} | {num(row['1']['recall'])} | "
+                f"{num(row['5']['recall'])} | {num(row['10']['recall'])} |"
+            )
+    return lines
+
+
+def evasion_source_table(ev: dict) -> list[str]:
+    lines = [
+        "",
+        "Per-source E7/E8/E10 spam recall (imc25 is about 94% of test spam):",
+        "",
+        "| model | source | n spam | E7 off | E8 on | leet off | leet on | E10 linkless |",
+        "|---|---|---:|---:|---:|---:|---:|---:|",
+    ]
+    for model, label in (("svm", "svm"), ("mmbert_base", "mmBERT-base")):
+        for src in ("imc25", "mishra", "moz", "smishtank"):
+            row = ev["models"][model]["sources"][src]
+            lines.append(
+                f"| {label} | {src} | {num(row['n_spam'])} | "
+                f"{num(row['baseline']['off'])} | {num(row['baseline']['on'])} | "
+                f"{num(row['attacks']['off']['leet']['recall_mean'])} | "
+                f"{num(row['attacks']['on']['leet']['recall_mean'])} | "
+                f"{num(row['e10']['spam_linkless'])} |"
+            )
+    return lines
+
+
+def e17_table(e17: dict) -> list[str]:
+    lines = [
+        "",
+        "Synthetic probe strings, CPU only; each arm runs in its own subprocess:",
+        "",
+        "| arm | batch 1 p50 | batch 1 p95 | batch 32 p50 / msg | batch 32 p95 / msg | disk MB | peak RSS MB |",
+        "|---|---:|---:|---:|---:|---:|---:|",
+    ]
+    for arm, label in (("svm", "svm"), ("mmbert_base", "mmBERT-base")):
+        row = e17["arms"][arm]
+        lines.append(
+            f"| {label} | {row['batch_1_ms']['p50']:.2f} ms | "
+            f"{row['batch_1_ms']['p95']:.2f} ms | "
+            f"{row['batch_32_ms_per_message']['p50']:.2f} ms | "
+            f"{row['batch_32_ms_per_message']['p95']:.2f} ms | "
+            f"{row['disk_mb']:.1f} | {row['rss_mb']:.0f} |"
+        )
+    return lines
+
+
 def build() -> str:
     e3 = load("e3_pool.json")
     e3_mm = load("e3_pool_mmbert_base.json")
@@ -309,7 +464,11 @@ def build() -> str:
     e14 = load("e14_conformal.json")
     recal = load("e_recal.json")
     ev = load("e7_e10_evasion.json")
+    ev_src = load("e7_e10_by_source.json")
     f = load("f_experiments.json")
+    lang_f3 = load("diag_language_f3.json")
+    e17_path = RESULTS / "e17_latency.json"
+    e17 = load("e17_latency.json") if e17_path.exists() else None
 
     e3_rows = e3["rows"] + e3_mm["rows"]
     e4_rows = e4["rows"] + e4_small["rows"]
@@ -471,12 +630,38 @@ def build() -> str:
     lines += evasion_tables(ev)
     lines += [
         "",
+        "**The pool-wide evasion number is dominated by `imc25`,** which supplies "
+        "about 94% of test spam. Read the per-source table below before quoting a "
+        "single evasion figure.",
+        "",
+    ]
+    lines += evasion_source_table(ev_src)
+    lines += [
+        "",
+        "Normaliser cost: on svm, turning the normaliser ON raises clean spam "
+        f"recall {num(ev['models']['svm']['baseline']['off']['recall'])} → "
+        f"{num(ev['models']['svm']['baseline']['on']['recall'])} and raises the "
+        f"FPR {num(ev['models']['svm']['baseline']['off']['fpr'])} → "
+        f"{num(ev['models']['svm']['baseline']['on']['fpr'])}. The gain is bought "
+        f"with roughly "
+        f"{num(100 * (ev['models']['svm']['baseline']['on']['fpr'] - ev['models']['svm']['baseline']['off']['fpr']), 1)} "
+        f"extra false positives per 100 ham.",
+        "",
         "## F1-F5 — svm-only fixes under LOSO (no gold)",
         "",
         f"Success rule, fixed before the run: {f['success_rule']}",
         "",
     ]
     lines += f_tables(f)
+    lines += f1_language_lines(f, lang_f3)
+    lines += f3_lines(lang_f3["f3"])
+    if e17 is not None:
+        lines += [
+            "",
+            "## E17 — latency and footprint",
+            "",
+        ]
+        lines += e17_table(e17)
     lines += [
         "",
         "## Caveats",
@@ -538,8 +723,18 @@ def build() -> str:
         "  collapses on `moz` and realised FPR stays above 1%.",
         "- **Does the normaliser help?** It helps svm most on leetspeak and",
         "  homoglyphs; mmBERT-base is less sensitive.",
-        "- **Did any F arm pass the success rule?** Read the success column in the",
-        "  F table; failures are reported there too.",
+        "- **Did any F arm pass the success rule?** No arm is a fix. `F3` "
+        "(source-class-balanced) passes the letter of the rule only through a "
+        "collapsed recall "
+        f"({num(f['arms']['source_class_balanced']['macro']['macro_recall'])} "
+        "against the baseline "
+        f"{num(f['arms']['baseline']['macro']['macro_recall'])}). The post-hoc "
+        "check splits the collapse: on `mishra` it is an unweighted-quantile "
+        "artifact, while on `moz` recall stays at "
+        f"{num(lang_f3['f3']['per_fold_recovery_from_weighted_quantile']['moz']['weighted_tau_test_recall'])} "
+        "even with a weighted quantile, so that fold is a ranking failure. "
+        "`format_masked` does not pass. Every arm is reported, including "
+        "failures.",
         "",
     ]
     return "\n".join(lines)
