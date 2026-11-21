@@ -307,8 +307,6 @@ def f1_language_lines(f: dict, lang: dict) -> list[str]:
     moz_lang = lang["language"]["baseline_loso_fpr_by_language"]["moz"]
     exais_lang = lang["language"]["baseline_loso_fpr_by_language"]["exais"]
     shares = lang["language"]["shares"]["moz"]
-    solid = {k: v for k, v in moz_lang.items() if v["n_ham"] >= 30}
-    best = max(solid.items(), key=lambda kv: kv[1]["fpr"] or 0.0)
     lines = [
         "",
         "F1 reading (templated from the JSON):",
@@ -322,27 +320,17 @@ def f1_language_lines(f: dict, lang: dict) -> list[str]:
         f"{exais['transactional']['n_ham']:,}) and bank-OTP ham FPR is "
         f"{num(exais['bank_otp']['fpr'])} ({exais['bank_otp']['n_flagged']:,}/"
         f"{exais['bank_otp']['n_ham']:,}).",
-        f"- Language check: source metadata plus a stopword heuristic (not a "
-        f"language-ID model). Declared: `moz` is "
+        f"- Language check: heuristic and partial. Source metadata tags "
         f"{pct(lang['language']['declared_shares']['moz']['top'].get('pt', {}).get('share', 0))} "
-        f"`pt`, `exais` is "
-        f"{pct(lang['language']['declared_shares']['exais']['top'].get('en', {}).get('share', 0))} "
-        f"`en`, `mishra` carries no language tag. By the text heuristic `moz` "
-        f"is {pct(shares['en']['share'])} en / {pct(shares['hinglish']['share'])} "
-        f"hinglish / {pct(shares['other']['share'])} other; the `other` bucket "
-        f"also catches very short messages, so it is not a pure non-English "
-        f"flag. Ham FPR by bucket is "
-        + ", ".join(
-            f"`{name}` {num(row['fpr'])} ({row['n_flagged']:,}/{row['n_ham']:,})"
-            for name, row in sorted(moz_lang.items())
-        )
-        + f"; the largest bucket is `{best[0]}` at {num(best[1]['fpr'])}"
-        + ". `exais` ham FPR by language is "
-        + ", ".join(
-            f"`{name}` {num(row['fpr'])} ({row['n_flagged']:,}/{row['n_ham']:,})"
-            for name, row in sorted(exais_lang.items())
-        )
-        + ".",
+        f"of `moz` `pt`. The text heuristic puts "
+        f"{pct(shares['en']['share'])} of `moz` in `en` and "
+        f"{pct(shares['other']['share'])} in `other`; the `en` bucket in a 100% "
+        f"`pt` source is short or ambiguous text, not real English. Ham FPR is "
+        f"{num(moz_lang['other']['fpr'])} for `other`-looking versus "
+        f"{num(moz_lang['en']['fpr'])} for `en`-looking rows, while `exais` "
+        f"shows no gap ({num(exais_lang['en']['fpr'])} `en` versus "
+        f"{num(exais_lang['other']['fpr'])} `other`). This is consistent with "
+        f"language shift on `moz`, not proof of it.",
     ]
     return lines
 
@@ -350,6 +338,9 @@ def f1_language_lines(f: dict, lang: dict) -> list[str]:
 def f3_lines(f3: dict) -> list[str]:
     folds = f3["folds"]
     rec = f3["per_fold_recovery_from_weighted_quantile"]
+    base_rate_moz = row(load("e4_loso.json")["rows"], "dummy", "moz")["pr_auc"]
+    f3_moz_pr = folds["moz"]["source_class_balanced"]["pr_auc"]
+    f3_moz_recall = folds["moz"]["source_class_balanced"]["recall"]
     lines = [
         "",
         "F3 diagnosis (post-hoc, not adopted):",
@@ -388,13 +379,15 @@ def f3_lines(f3: dict) -> list[str]:
         f"- On `mishra` the collapse **is** a threshold artifact: the weighted "
         f"quantile recovers {num(rec['mishra']['recovered'])} recall at a "
         f"realised FPR of {num(rec['mishra']['weighted_tau_test_fpr'])}.",
-        f"- On `moz` it is **not**: recall stays "
-        f"{num(rec['moz']['weighted_tau_test_recall'])} at a realised FPR of "
-        f"{num(rec['moz']['weighted_tau_test_fpr'])}. That fold is a "
-        "score-scale/ranking failure, not a quantile mismatch.",
+        f"- On `moz` it is **not**: the F3 PR-AUC is {num(f3_moz_pr)} against a "
+        f"base rate of {num(base_rate_moz)} — above base rate — but recall is "
+        f"{num(f3_moz_recall)} at the 1%-FPR threshold "
+        f"({num(rec['moz']['weighted_tau_test_recall'])} with a weighted "
+        f"quantile, realised FPR {num(rec['moz']['weighted_tau_test_fpr'])}). "
+        "Ranking is weak at the top and the operating point is unusable.",
         "- The weights are applied consistently in fitting and OOF scoring, so "
-        "this is a threshold-rule mismatch plus a `moz` ranking failure, not a "
-        "fitting bug. Either way F3 is not a fix.",
+        "this is a threshold-rule mismatch on `mishra` and a weak-at-the-top "
+        "ranking on `moz`, not a fitting bug. Either way F3 is not a fix.",
         "",
         "Descriptive recall at the held-out source's own FPR (oracle threshold, "
         "not deployable):",
@@ -404,10 +397,10 @@ def f3_lines(f3: dict) -> list[str]:
     ]
     for held in ("mishra", "moz"):
         for label, key in (("baseline", "baseline"), ("F3", "source_class_balanced")):
-            row = folds[held][key]["descriptive_at_test_fpr"]
+            desc = folds[held][key]["descriptive_at_test_fpr"]
             lines.append(
-                f"| {held} | {label} | {num(row['1']['recall'])} | "
-                f"{num(row['5']['recall'])} | {num(row['10']['recall'])} |"
+                f"| {held} | {label} | {num(desc['1']['recall'])} | "
+                f"{num(desc['5']['recall'])} | {num(desc['10']['recall'])} |"
             )
     return lines
 
@@ -685,6 +678,18 @@ def build() -> str:
         "  everywhere and ranking on some held-out sources.",
         "- **`mishra`, `moz` and `exais` are now development folds for the F arms.**",
         "  They are no longer pristine held-out evidence for changes chosen from F.",
+        f"- **Pool-wide evasion hides source-level failures.** mmBERT-base "
+        f"leetspeak recall on `moz` is "
+        f"{num(ev_src['models']['mmbert_base']['sources']['moz']['attacks']['on']['leet']['recall_mean'])} "
+        f"against a pool-wide "
+        f"{num(ev['models']['mmbert_base']['attacks']['on']['leet']['recall_mean'])}.",
+        f"- **The normaliser has a cost and a source-specific benefit.** On svm it "
+        f"raises `mishra` clean recall "
+        f"{num(ev_src['models']['svm']['sources']['mishra']['baseline']['off'])} → "
+        f"{num(ev_src['models']['svm']['sources']['mishra']['baseline']['on'])} and "
+        f"raises pool FPR "
+        f"{num(ev['models']['svm']['baseline']['off']['fpr'])} → "
+        f"{num(ev['models']['svm']['baseline']['on']['fpr'])}.",
         f"- **No accuracy is reported.** The pool is about {pct(prevalence)} positive,",
         "  so accuracy would mostly restate the base rate.",
         "- **Synthetic gold false positives concentrate in legitimate bank/service",
@@ -731,7 +736,9 @@ def build() -> str:
         "check splits the collapse: on `mishra` it is an unweighted-quantile "
         "artifact, while on `moz` recall stays at "
         f"{num(lang_f3['f3']['per_fold_recovery_from_weighted_quantile']['moz']['weighted_tau_test_recall'])} "
-        "even with a weighted quantile, so that fold is a ranking failure. "
+        "even with a weighted quantile, so that fold's operating point is "
+        "unusable at 1% FPR (its PR-AUC is above the base rate, but the top of "
+        "the ranking is weak). "
         "`format_masked` does not pass. Every arm is reported, including "
         "failures.",
         "",

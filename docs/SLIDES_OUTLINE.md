@@ -70,11 +70,11 @@ Speaker note: the licence row matters for any public deployment.
 
 ## 6. Failure analysis
 
-- **`moz` is a language-shift fold.** The card lists MOZ as Portuguese (Mozambique), and the manifest tags 100.00% of it `pt`. A stopword heuristic (not a language-ID model) puts 81.33% of `moz` rows in "other" versus 8.51% in `mishra`. The highest `moz` ham FPR sits in the non-English bucket (0.3393). At the frozen threshold `moz` recall is 0.3187 and FPR 0.3111; PR-AUC is 0.2329 against a base rate of 0.2343.
+- **`moz` shows a language-shaped FPR gap, but the check is partial.** Source metadata tags 100.00% of `moz` `pt`. The stopword heuristic (not a language-ID model) puts 18.54% in `en` and 81.33% in `other`; the `en` bucket in a 100% `pt` source is short or ambiguous text, not real English. Ham FPR is 0.3393 for `other`-looking versus 0.1445 for `en`-looking rows, while `exais` shows no gap (0.3830 `en` versus 0.3744 `other`). This is consistent with language shift on `moz`, not proof of it. At the frozen threshold `moz` recall is 0.3187 and FPR 0.3111; PR-AUC is 0.2329 against a base rate of 0.2343.
 - **ExAIS is transactional ham.** Under LOSO, transactional ham FPR is 0.7905 and bank-OTP ham FPR is 0.6923. The model reads invoice and alert language as spammy.
 - **Synthetic gold false positives are legitimate bank/service messages.** svm FPR is 0.5429 on 35 ham rows. The pool contains almost no real bank-alert ham, so this is a data gap as much as a model gap.
 - **Recalibration on labelled target ham does not fix `moz`.** At k=100, mean recall is 0.0073 at a realised FPR of 0.0240.
-- **F3 passes the rule only through collapsed recall.** On `mishra` the collapse is the unweighted OOF quantile (a weighted quantile recovers 0.2328 recall); on `moz` recall stays 0.0000 even with a weighted quantile, so that fold is a ranking failure. No arm is a fix.
+- **F3 passes the rule only through collapsed recall.** On `mishra` the collapse is the unweighted OOF quantile (a weighted quantile recovers 0.2328 recall). On `moz` the F3 PR-AUC is 0.4405 against a base rate of 0.2343 — above base rate — but recall is 0.0000 at the 1%-FPR threshold: ranking weak at the top, operating point unusable. No arm is a fix.
 - **Pool-wide aggregates flatter the model.** One source dominates the positives.
 
 ---
@@ -97,7 +97,7 @@ source mix.
 - Pre-registered rule: macro FPR must drop ≥ 0.05 while macro PR-AUC falls
   ≤ 0.02.
 - `prevalence_*`: worse FPR and worse PR-AUC.
-- `source_class_balanced` (F3): passes the letter of the rule (FPR 0.1678 → 0.0006) **only** by collapsing recall to 0.0366. Post-hoc: unweighted-quantile artifact on `mishra`, ranking failure on `moz`.
+- `source_class_balanced` (F3): passes the letter of the rule (FPR 0.1678 → 0.0006) **only** by collapsing recall to 0.0366. Post-hoc: unweighted-quantile artifact on `mishra`; on `moz` PR-AUC is 0.4405 against a base rate of 0.2343 but recall is 0.0000 at the 1%-FPR threshold (weak at the top).
 - `format_masked`: removes the format shortcut but worsens LOSO (PR-AUC 0.5473 → 0.5215).
 - Every arm is reported, including failures.
 

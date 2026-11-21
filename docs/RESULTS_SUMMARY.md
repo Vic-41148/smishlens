@@ -251,7 +251,7 @@ F1 reading (templated from the JSON):
 
 - On `moz`, 538 of 555 baseline false positives (96.94%) are chatty; 9/11 promo and 5/5 bank-OTP ham are flagged.
 - On `exais`, transactional ham FPR is 0.7905 (249/315) and bank-OTP ham FPR is 0.6923 (27/39).
-- Language check: source metadata plus a stopword heuristic (not a language-ID model). Declared: `moz` is 100.00% `pt`, `exais` is 100.00% `en`, `mishra` carries no language tag. By the text heuristic `moz` is 18.54% en / 0.13% hinglish / 81.33% other; the `other` bucket also catches very short messages, so it is not a pure non-English flag. Ham FPR by bucket is `en` 0.1445 (38/263), `hinglish` 0.6667 (2/3), `other` 0.3393 (515/1,518); the largest bucket is `other` at 0.3393. `exais` ham FPR by language is `en` 0.3830 (671/1,752), `hinglish` 1.0000 (1/1), `other` 0.3744 (216/577).
+- Language check: heuristic and partial. Source metadata tags 100.00% of `moz` `pt`. The text heuristic puts 18.54% of `moz` in `en` and 81.33% in `other`; the `en` bucket in a 100% `pt` source is short or ambiguous text, not real English. Ham FPR is 0.3393 for `other`-looking versus 0.1445 for `en`-looking rows, while `exais` shows no gap (0.3830 `en` versus 0.3744 `other`). This is consistent with language shift on `moz`, not proof of it.
 
 F3 diagnosis (post-hoc, not adopted):
 
@@ -271,8 +271,8 @@ Weighted-quantile alternative (diagnostic only, not deployable):
 | moz | 0.0000 | 0.0000 | 0.0185 |
 
 - On `mishra` the collapse **is** a threshold artifact: the weighted quantile recovers 0.2328 recall at a realised FPR of 0.0054.
-- On `moz` it is **not**: recall stays 0.0000 at a realised FPR of 0.0185. That fold is a score-scale/ranking failure, not a quantile mismatch.
-- The weights are applied consistently in fitting and OOF scoring, so this is a threshold-rule mismatch plus a `moz` ranking failure, not a fitting bug. Either way F3 is not a fix.
+- On `moz` it is **not**: the F3 PR-AUC is 0.4405 against a base rate of 0.2343 — above base rate — but recall is 0.0000 at the 1%-FPR threshold (0.0000 with a weighted quantile, realised FPR 0.0185). Ranking is weak at the top and the operating point is unusable.
+- The weights are applied consistently in fitting and OOF scoring, so this is a threshold-rule mismatch on `mishra` and a weak-at-the-top ranking on `moz`, not a fitting bug. Either way F3 is not a fix.
 
 Descriptive recall at the held-out source's own FPR (oracle threshold, not deployable):
 
@@ -314,6 +314,8 @@ Synthetic probe strings, CPU only; each arm runs in its own subprocess:
   everywhere and ranking on some held-out sources.
 - **`mishra`, `moz` and `exais` are now development folds for the F arms.**
   They are no longer pristine held-out evidence for changes chosen from F.
+- **Pool-wide evasion hides source-level failures.** mmBERT-base leetspeak recall on `moz` is 0.2049 against a pool-wide 0.9490.
+- **The normaliser has a cost and a source-specific benefit.** On svm it raises `mishra` clean recall 0.5319 → 0.7021 and raises pool FPR 0.0134 → 0.0201.
 - **No accuracy is reported.** The pool is about 85.29% positive,
   so accuracy would mostly restate the base rate.
 - **Synthetic gold false positives concentrate in legitimate bank/service
@@ -351,5 +353,5 @@ Synthetic probe strings, CPU only; each arm runs in its own subprocess:
   collapses on `moz` and realised FPR stays above 1%.
 - **Does the normaliser help?** It helps svm most on leetspeak and
   homoglyphs; mmBERT-base is less sensitive.
-- **Did any F arm pass the success rule?** No arm is a fix. `F3` (source-class-balanced) passes the letter of the rule only through a collapsed recall (0.0366 against the baseline 0.4029). The post-hoc check splits the collapse: on `mishra` it is an unweighted-quantile artifact, while on `moz` recall stays at 0.0000 even with a weighted quantile, so that fold is a ranking failure. `format_masked` does not pass. Every arm is reported, including failures.
+- **Did any F arm pass the success rule?** No arm is a fix. `F3` (source-class-balanced) passes the letter of the rule only through a collapsed recall (0.0366 against the baseline 0.4029). The post-hoc check splits the collapse: on `mishra` it is an unweighted-quantile artifact, while on `moz` recall stays at 0.0000 even with a weighted quantile, so that fold's operating point is unusable at 1% FPR (its PR-AUC is above the base rate, but the top of the ranking is weak). `format_masked` does not pass. Every arm is reported, including failures.
 

@@ -103,10 +103,12 @@ def failure_bullets() -> list[str]:
     f = load("f_experiments.json")
     diag = load("diag_language_f3.json")
     exais = f["f1_fp_by_ham_category"]["exais"]
-    rec = diag["f3"]["per_fold_recovery_from_weighted_quantile"]
+    f3 = diag["f3"]
+    rec = f3["per_fold_recovery_from_weighted_quantile"]
     moz_lang = diag["language"]["baseline_loso_fpr_by_language"]["moz"]
+    exais_lang = diag["language"]["baseline_loso_fpr_by_language"]["exais"]
     shares = diag["language"]["shares"]["moz"]
-    mishra_other = diag["language"]["shares"]["mishra"]["other"]["share"]
+    pt_share = diag["language"]["declared_shares"]["moz"]["top"]["pt"]["share"]
     moz_fpr = _svm_e4("moz")["fpr"]
     moz_recall = _svm_e4("moz")["recall"]
     moz_pr = _svm_e4("moz")["pr_auc"]
@@ -114,14 +116,19 @@ def failure_bullets() -> list[str]:
     gold = _gold_v2()["models"]["svm"]
     recal = load("e_recal.json")["models"]["svm"]["moz"]["recal"]["100"]
     return [
-        f"- **`moz` is a language-shift fold.** The card lists MOZ as Portuguese "
-        f"(Mozambique), and the manifest tags {pct(diag['language']['declared_shares']['moz']['top']['pt']['share'])} "
-        f"of it `pt`. A stopword heuristic (not a language-ID model) puts "
-        f"{pct(shares['other']['share'])} of `moz` rows in \"other\" versus "
-        f"{pct(mishra_other)} in `mishra`. The highest `moz` ham FPR sits in the "
-        f"non-English bucket ({num(moz_lang['other']['fpr'])}). At the frozen "
-        f"threshold `moz` recall is {num(moz_recall)} and FPR {num(moz_fpr)}; "
-        f"PR-AUC is {num(moz_pr)} against a base rate of {num(dummy_moz)}.",
+        f"- **`moz` shows a language-shaped FPR gap, but the check is partial.** "
+        f"Source metadata tags {pct(pt_share)} of `moz` `pt`. The stopword "
+        f"heuristic (not a language-ID model) puts "
+        f"{pct(shares['en']['share'])} in `en` and "
+        f"{pct(shares['other']['share'])} in `other`; the `en` bucket in a 100% "
+        f"`pt` source is short or ambiguous text, not real English. Ham FPR is "
+        f"{num(moz_lang['other']['fpr'])} for `other`-looking versus "
+        f"{num(moz_lang['en']['fpr'])} for `en`-looking rows, while `exais` "
+        f"shows no gap ({num(exais_lang['en']['fpr'])} `en` versus "
+        f"{num(exais_lang['other']['fpr'])} `other`). This is consistent with "
+        f"language shift on `moz`, not proof of it. At the frozen threshold "
+        f"`moz` recall is {num(moz_recall)} and FPR {num(moz_fpr)}; PR-AUC is "
+        f"{num(moz_pr)} against a base rate of {num(dummy_moz)}.",
         f"- **ExAIS is transactional ham.** Under LOSO, transactional ham FPR is "
         f"{num(exais['transactional']['fpr'])} and bank-OTP ham FPR is "
         f"{num(exais['bank_otp']['fpr'])}. The model reads invoice and alert "
@@ -135,9 +142,12 @@ def failure_bullets() -> list[str]:
         f"realised FPR of {num(recal['fpr']['mean'])}.",
         f"- **F3 passes the rule only through collapsed recall.** On `mishra` the "
         f"collapse is the unweighted OOF quantile (a weighted quantile recovers "
-        f"{num(rec['mishra']['recovered'])} recall); on `moz` recall stays "
-        f"{num(rec['moz']['weighted_tau_test_recall'])} even with a weighted "
-        f"quantile, so that fold is a ranking failure. No arm is a fix.",
+        f"{num(rec['mishra']['recovered'])} recall). On `moz` the F3 PR-AUC is "
+        f"{num(f3['folds']['moz']['source_class_balanced']['pr_auc'])} against a "
+        f"base rate of {num(dummy_moz)} — above base rate — but recall is "
+        f"{num(f3['folds']['moz']['source_class_balanced']['recall'])} at the "
+        f"1%-FPR threshold: ranking weak at the top, operating point unusable. "
+        f"No arm is a fix.",
         "- **Pool-wide aggregates flatter the model.** One source dominates the "
         "positives.",
     ]
@@ -305,11 +315,14 @@ def readme() -> str:
         f"{num(f['arms']['baseline']['macro']['macro_fpr'])} → "
         f"{num(f['arms']['source_class_balanced']['macro']['macro_fpr'])}) only by "
         f"collapsing macro recall to "
-        f"{num(f['arms']['source_class_balanced']['macro']['macro_recall'])}. The "
-        f"collapse is an unweighted-quantile artifact on `mishra` and a ranking "
-        f"failure on `moz` (recall stays "
-        f"{num(f3['per_fold_recovery_from_weighted_quantile']['moz']['weighted_tau_test_recall'])} "
-        f"even with a weighted quantile).",
+        f"{num(f['arms']['source_class_balanced']['macro']['macro_recall'])}. On "
+        f"`mishra` that is an unweighted-quantile artifact. On `moz` the F3 "
+        f"PR-AUC is {num(f3['folds']['moz']['source_class_balanced']['pr_auc'])} "
+        f"against a base rate of "
+        f"{num(row(_e4(), 'dummy', 'moz')['pr_auc'])} — above base rate — but "
+        f"recall is {num(f3['folds']['moz']['source_class_balanced']['recall'])} "
+        f"at the 1%-FPR threshold: ranking weak at the top, operating point "
+        f"unusable.",
         f"- `format_masked` removes a format shortcut but worsens LOSO "
         f"(PR-AUC {num(f['arms']['baseline']['macro']['macro_pr_auc'])} → "
         f"{num(f['arms']['format_masked']['macro']['macro_pr_auc'])}).",
@@ -572,6 +585,7 @@ def slides() -> str:
     imc_share = stats["imc25"]["test_spam"] / total_test_spam
     ev = load("e7_e10_evasion.json")["models"]["svm"]
     f = load("f_experiments.json")
+    f3 = load("diag_language_f3.json")["f3"]
     gold_meta = _gold_v2()
     gold = gold_meta["models"]
     e17 = load("e17_latency.json")["arms"]
@@ -683,8 +697,11 @@ def slides() -> str:
         f"{num(f['arms']['source_class_balanced']['macro']['macro_fpr'])}) **only** "
         f"by collapsing recall to "
         f"{num(f['arms']['source_class_balanced']['macro']['macro_recall'])}. "
-        f"Post-hoc: unweighted-quantile artifact on `mishra`, ranking failure on "
-        f"`moz`.",
+        f"Post-hoc: unweighted-quantile artifact on `mishra`; on `moz` PR-AUC is "
+        f"{num(f3['folds']['moz']['source_class_balanced']['pr_auc'])} against a "
+        f"base rate of {num(row(_e4(), 'dummy', 'moz')['pr_auc'])} but recall is "
+        f"{num(f3['folds']['moz']['source_class_balanced']['recall'])} at the "
+        f"1%-FPR threshold (weak at the top).",
         f"- `format_masked`: removes the format shortcut but worsens LOSO "
         f"(PR-AUC {num(f['arms']['baseline']['macro']['macro_pr_auc'])} → "
         f"{num(f['arms']['format_masked']['macro']['macro_pr_auc'])}).",
