@@ -426,6 +426,61 @@ def evasion_source_table(ev: dict) -> list[str]:
     return lines
 
 
+def real_alerts_lines() -> list[str]:
+    """Aggregate-only summary of the local real-alert evaluation, if it exists."""
+    path = RESULTS / "real_alerts.json"
+    lines = [
+        "",
+        "## Real alerts (local evaluation set)",
+        "",
+        "`data/local/real_alerts.csv` is a small, git-ignored set of real",
+        "anonymised alerts. It is scored once with the frozen bundle and is never",
+        "used for training, calibration, threshold selection or tuning. Only",
+        "aggregates are reported; no text and no row id is written.",
+        "",
+    ]
+    if not path.exists():
+        return lines + [
+            "Not yet run. Run `make real-alerts` to write",
+            "`reports/results/real_alerts.json`.",
+        ]
+
+    report = json.loads(path.read_text())
+    labels = report.get("per_label", {})
+    bands = report.get("bands", {})
+    mean = report.get("mean_calibrated_score", {})
+    lines += [
+        f"Generated {report.get('generated_utc', '—')}; "
+        f"artifact `{report.get('artifact_sha256', '—')}`.",
+        "",
+        "| n | ham | spam | FPR at frozen threshold | recall at frozen threshold |",
+        "|---:|---:|---:|---:|---:|",
+        f"| {num(report.get('n'))} | {num(labels.get('ham'))} | "
+        f"{num(labels.get('spam'))} | "
+        f"{num(report.get('fpr_at_frozen_threshold'))} | "
+        f"{num(report.get('recall_at_frozen_threshold'))} |",
+        "",
+        "| band | all | ham | spam |",
+        "|---|---:|---:|---:|",
+    ]
+    by_label = report.get("bands_by_label", {})
+    for band in ("likely scam", "looks ordinary", "needs review"):
+        lines.append(
+            f"| {band} | {num(bands.get(band))} | "
+            f"{num(by_label.get('ham', {}).get(band))} | "
+            f"{num(by_label.get('spam', {}).get(band))} |"
+        )
+    lines += [
+        "",
+        f"Mean calibrated score: all {num(mean.get('all'))}, "
+        f"ham {num(mean.get('ham'))}, spam {num(mean.get('spam'))}.",
+        "",
+        f"A run with fewer than {num(report.get('min_ham_required'))} ham rows "
+        "refuses to report a false-positive rate.",
+    ]
+    return lines
+
+
 def e17_table(e17: dict) -> list[str]:
     lines = [
         "Synthetic probe strings, CPU only; each arm runs in its own subprocess:",
@@ -654,6 +709,7 @@ def build() -> str:
             "",
         ]
         lines += e17_table(e17)
+    lines += real_alerts_lines()
     lines += [
         "",
         "## Caveats",

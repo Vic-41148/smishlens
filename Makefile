@@ -7,7 +7,7 @@ PY     := .venv/bin/python
 PIP    := .venv/bin/pip
 export PYTHONPATH := src
 
-.PHONY: setup test lint train app serve build-serve eda data summary docs diag e17 public-check install-hooks deploy-env clean
+.PHONY: setup test lint train app serve build-serve eda data summary docs diag e17 public-check real-alerts install-hooks deploy-env clean
 
 setup:
 	python3 -m venv .venv
@@ -67,6 +67,11 @@ e17:
 # Assert the tracked tree matches the public/private deployment split.
 public-check:
 	$(PY) -m smishlens.public_check
+
+# Score the local, git-ignored real-alert set once with the frozen bundle.
+# Aggregates only; refuses a thin ham sample. Writes reports/results/real_alerts.json.
+real-alerts:
+	$(PY) scripts/eval_real_alerts.py
 
 # Install the committed pre-push template. The hook uses the stdlib python3
 # path only, so it works without the venv.

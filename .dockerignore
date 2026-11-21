@@ -11,9 +11,11 @@ __pycache__
 # Never ship data, checkpoints or generated reports
 data
 data/local
+data/local/real_alerts.csv
 models
 checkpoints
 reports
+reports/results/real_alerts.json
 tests
 docs
 artifacts/mmbert

@@ -27,6 +27,12 @@ def test_public_tree_rejects_raw_and_review_data():
     assert violations(["session-notes.md"])
 
 
+def test_public_tree_rejects_local_real_alerts():
+    assert violations(["data/local/real_alerts.csv"])
+    assert violations(["data/local/real_alerts.json"])
+    assert violations(["reports/results/real_alerts.json"])
+
+
 def test_public_tree_accepts_code_and_docs():
     assert not violations(
         [

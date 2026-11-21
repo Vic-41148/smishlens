@@ -143,3 +143,20 @@ def test_deletions_are_ignored(tmp_path, remote):
     repo = _repo(tmp_path)
     result = _run_hook(repo, remote, [_line("(delete)", ZERO)])
     assert result.returncode == 0
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["data/local/real_alerts.csv", "reports/results/real_alerts.json"],
+)
+def test_refuses_local_real_alerts_on_origin(tmp_path, path):
+    repo = _repo(tmp_path)
+    target = repo / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("text-free fixture\n")
+    _git(repo, "add", "-f", path)
+    _git(repo, "commit", "-q", "-m", "local set")
+    sha = _git(repo, "rev-parse", "HEAD")
+    result = _run_hook(repo, "origin", [_line("refs/heads/main", sha)])
+    assert result.returncode != 0
+    assert "forbidden" in result.stdout

@@ -33,11 +33,13 @@ ARTIFACT_FILES = (
 FORBIDDEN_PREFIXES = (
     "data/raw/",
     "data/processed/review/",
+    "data/local/",
 )
 FORBIDDEN_PATHS = (
     "data/processed/modern/train.csv",
     "data/processed/modern/cal.csv",
     "data/processed/modern/test.csv",
+    "reports/results/real_alerts.json",
 )
 FORBIDDEN_SUFFIXES = (".joblib", ".pt", ".bin", ".safetensors", ".onnx")
 ALLOWED_PATHS = ("data/raw/.gitkeep", "artifacts/.gitkeep")

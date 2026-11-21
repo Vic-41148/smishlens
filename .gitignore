@@ -18,6 +18,10 @@ data/processed/modern/cal.csv
 data/processed/modern/test.csv
 data/processed/review/
 
+# Real-alert evaluation set and its report: local-only, never committed.
+data/local/
+reports/results/real_alerts.json
+
 # Model artefacts and checkpoints (regenerate; never commit weights)
 artifacts/*
 !artifacts/.gitkeep
