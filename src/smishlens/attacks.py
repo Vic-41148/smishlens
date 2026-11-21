@@ -11,6 +11,7 @@ from __future__ import annotations
 import random
 
 import numpy as np
+import pandas as pd
 
 from smishlens.normalise import URL
 
@@ -83,3 +84,104 @@ def url_slices(df):
         "spam_linkless": df[(df["y"] == 1) & ~df["has_url"]],
         "ham": df[df["y"] == 0],
     }
+
+
+def augment_with_attacks(
+    train: pd.DataFrame,
+    families: tuple[str, ...] = ("leet", "zero_width"),
+    copies: int = 1,
+    seed: int = 0,
+) -> pd.DataFrame:
+    """E9: add perturbed copies of the spam rows, one family at a time.
+
+    Only positives are augmented, because the threat model is a spammer
+    disguising spam. Ham is untouched, so augmentation cannot inflate the
+    negative class with artefacts of the perturbing code.
+    """
+    unknown = [f for f in families if f not in ATTACKS]
+    if unknown:
+        raise ValueError(f"unknown attack families {unknown}")
+    rng = random.Random(seed)
+    positives = train[train["y"] == 1]
+    extra = []
+    for family in families:
+        attack = ATTACKS[family]
+        for _ in range(copies):
+            part = positives.copy()
+            part["text"] = [attack(t, rng) for t in positives["text"]]
+            extra.append(part)
+    if not extra:
+        return train.reset_index(drop=True)
+    return pd.concat([train, *extra], ignore_index=True)
+
+
+def eval_families(
+    predict_proba,
+    spam_texts,
+    tau: float,
+    families: tuple[str, ...] | None = None,
+    seeds: tuple[int, ...] = (0, 1, 2),
+    trained_on: tuple[str, ...] = (),
+) -> pd.DataFrame:
+    """E9: recall per attack family, grouped as in-family or cross-family.
+
+    ``trained_on`` lists the families the model saw during augmentation; every
+    other family is a held-out attack and its recall is the generalisation
+    number that matters.
+    """
+    names = tuple(ATTACKS) if families is None else families
+    rows = []
+    for name in names:
+        mean, std = eval_attack(predict_proba, spam_texts, ATTACKS[name], tau, seeds)
+        rows.append(
+            {
+                "attack": name,
+                "group": "in_family" if name in trained_on else "cross_family",
+                "recall_mean": mean,
+                "recall_std": std,
+                "n": len(spam_texts),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def family_summary(table: pd.DataFrame) -> pd.DataFrame:
+    """Mean recall per group, so in-family and cross-family are one number each."""
+    return (
+        table.groupby("group", as_index=False)
+        .agg(recall_mean=("recall_mean", "mean"), attacks=("attack", "count"))
+    )
+
+
+def url_arm(predict_proba, df: pd.DataFrame, tau: float) -> pd.DataFrame:
+    """E10: the same frame under the normal, URL-masked and link-less views.
+
+    The URL-masked arm removes every link before scoring; the link-less slice
+    keeps only spam that never had one. If recall on the link-less slice is far
+    below the normal arm, the detector leans on links.
+    """
+    from smishlens.evaluate import metrics_at
+
+    views = {
+        "normal": df,
+        "url_masked": df.assign(text=df["text"].map(strip_urls)),
+        "spam_linkless": url_slices(df)["spam_linkless"],
+    }
+    rows = []
+    for name, part in views.items():
+        if part.empty:
+            rows.append({"view": name, "n": 0, "n_pos": 0, "n_neg": 0, "recall": None, "fpr": None})
+            continue
+        p = predict_proba(part["text"].tolist())[:, 1]
+        m = metrics_at(part["y"].values, p, tau)
+        rows.append(
+            {
+                "view": name,
+                "n": len(part),
+                "n_pos": m["n_pos"],
+                "n_neg": m["n_neg"],
+                "recall": m["recall"],
+                "fpr": m["fpr"],
+            }
+        )
+    return pd.DataFrame(rows)

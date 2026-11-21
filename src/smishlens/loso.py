@@ -7,6 +7,10 @@ source is the real cost of drift.
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
+import numpy as np
 import pandas as pd
 from sklearn.model_selection import StratifiedKFold, cross_val_predict
 
@@ -60,9 +64,53 @@ def macro(res: pd.DataFrame) -> dict[str, float]:
     both = res[res["mode"] == "both"]
     out: dict[str, float] = {"folds": float(len(both))}
     for key in ("recall", "fpr", "pr_auc", "roc_auc"):
-        if key in both:
-            out[key] = float(both[key].mean())
+        if key in both and both[key].notna().any():
+            value = float(both[key].mean())
+            if np.isfinite(value):
+                out[key] = value
     return out
+
+
+RESULTS_DIR = Path(__file__).resolve().parents[2] / "reports" / "results"
+
+
+def _clean(value):
+    """JSON-safe scalar: NaN/inf become null, numpy scalars become Python ones."""
+    if isinstance(value, (np.floating, float)):
+        return None if not np.isfinite(value) else float(value)
+    if isinstance(value, np.integer):
+        return int(value)
+    if isinstance(value, np.bool_):
+        return bool(value)
+    return value
+
+
+def write_results(
+    res: pd.DataFrame,
+    name: str = "loso",
+    out_dir: Path | str = RESULTS_DIR,
+    meta: dict | None = None,
+) -> Path:
+    """Write per-source rows plus the macro average to ``out_dir/<name>.json``.
+
+    ``macro`` averages ``both`` folds only, so a positives-only source cannot
+    drag it. A metric that does not exist for a fold (``fpr`` on a recall-only
+    source) is left out of that row rather than written as null, so the file is
+    valid JSON and each row reports only what its mode supports.
+    """
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "meta": meta or {},
+        "per_source": [
+            {k: _clean(v) for k, v in row.items() if _clean(v) is not None}
+            for row in res.to_dict(orient="records")
+        ],
+        "macro": {k: _clean(v) for k, v in macro(res).items()},
+    }
+    path = out_dir / f"{name}.json"
+    path.write_text(json.dumps(payload, indent=2, allow_nan=False) + "\n")
+    return path
 
 
 def fit_predict_svm(train: pd.DataFrame, test: pd.DataFrame, C: float = 0.5):

@@ -92,3 +92,33 @@ def mcnemar_exact(y, pred_a, pred_b):
     if b + c == 0:
         return b, c, 1.0
     return b, c, float(binomtest(min(b, c), b + c, 0.5).pvalue)
+
+
+def cost_operating_point(
+    y, p, fp_cost: float = 10.0, fn_cost: float = 1.0
+) -> dict[str, float]:
+    """Threshold minimising expected cost when a false positive costs ``fp_cost``.
+
+    The FPR budget is the headline operating point; this is the second one,
+    because a blocked OTP or bank alert costs far more than a missed ad. Every
+    candidate threshold is tried, so the result is the exact minimiser on the
+    observed scores, not a grid approximation.
+    """
+    y = np.asarray(y)
+    p = np.asarray(p)
+    if y.size == 0:
+        return {"tau": float("nan"), "cost": float("nan"), "recall": float("nan"), "fpr": float("nan")}
+    _, _, thresholds = roc_curve(y, p)
+    candidates = np.unique(np.concatenate([[np.inf], thresholds]))
+    best = None
+    for tau in candidates:
+        m = metrics_at(y, p, float(tau))
+        cost = fp_cost * (m["fpr"] * m["n_neg"]) + fn_cost * (1 - m["recall"]) * m["n_pos"]
+        if best is None or cost < best["cost"]:
+            best = {
+                "tau": float(tau),
+                "cost": float(cost),
+                "recall": float(m["recall"]),
+                "fpr": float(m["fpr"]),
+            }
+    return best
